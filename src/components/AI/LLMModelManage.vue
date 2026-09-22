@@ -16,10 +16,6 @@ const open = ref(false)
 
 function del(d: ModelConf) {
   modelStore.modelData.value = modelStore.modelData.value.filter((v) => d.key !== v.key)
-  toast.add({
-    title: '删除成功',
-    color: 'success',
-  })
 }
 
 function copy(d: ModelConf) {
@@ -27,10 +23,6 @@ function copy(d: ModelConf) {
   d.key = new Date().getTime().toString()
   d.name = `${d.name} 副本`
   modelStore.modelData.value.push(d)
-  toast.add({
-    title: '复制成功',
-    color: 'success',
-  })
 }
 
 const createModelData = ref()

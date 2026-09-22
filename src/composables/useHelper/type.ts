@@ -1,4 +1,7 @@
-import { BossZpBossData } from '@/entrypoints/boss/types'
+import type { AccordionItem, FormFieldProps, InputNumberProps } from '@nuxt/ui'
+
+import type { ExtendedAlertProps } from '@/components/Alert.vue'
+import type { BossZpBossData } from '@/entrypoints/boss/types'
 import type { amapDistance, amapGeocode } from '@/utils/amap'
 
 export type JobBaseData = {
@@ -118,4 +121,41 @@ export interface Log {
   state_name: string // 标签文本
   message?: string // 显示消息
   data?: LogData
+}
+
+export type AlertItem = ExtendedAlertProps & {
+  type: 'alert'
+}
+
+export type ConfigItem =
+  | {
+      key: string
+      type:
+        | 'select'
+        | 'checkbox'
+        | (
+            | 'salaryRange'
+            | 'companySizeRange'
+            | 'customGreeting'
+            | 'address'
+            | 'appearance'
+            | 'checkbox-expire'
+          )
+    }
+  | AlertItem
+  | {
+      type: 'div'
+      items?: (ConfigItem | false)[]
+
+      [key: string]: any
+    }
+  | {
+      type: 'inputNumber'
+      key: string
+      fieldProps?: FormFieldProps
+      inputNumberProps?: InputNumberProps
+    }
+
+export interface ConfigAccordionItem extends AccordionItem {
+  items?: (ConfigItem | false)[]
 }

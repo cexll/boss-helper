@@ -5,7 +5,7 @@ import { getToolName, isReasoningUIPart, isTextUIPart, isToolUIPart, UIMessage }
 import { appearanceConf } from '@/composables/conf'
 import { parseFiltering } from '@/composables/useApplying/utils'
 import { useHelper } from '@/composables/useHelper'
-import { VueChatState, Message } from '@/composables/useModel/test'
+import { VueChatState, Message } from '@/composables/useModel'
 
 const open = defineModel('open', { default: false })
 const following = ref(true)
@@ -150,7 +150,7 @@ onUnmounted(() => {
     inset
     :dismissible="false"
     :modal="false"
-    :ui="{ body: 'flex flex-col overscroll-contain p-2', content: 'top-14' }"
+    :ui="{ body: 'flex flex-col overscroll-contain p-2', content: 'top-14 z-190' }"
     :style="{
       width: `${appearanceConf.chatBoxWidth}px`,
     }"
@@ -267,7 +267,7 @@ onUnmounted(() => {
       </UChatMessages>
     </template>
     <template #footer>
-      <UChatPrompt variant="soft">
+      <UChatPrompt variant="soft" v-model="helper.pendingMessages.value">
         <UChatPromptSubmit v-if="messages" :status="messages.statusRef.value" />
       </UChatPrompt>
     </template>

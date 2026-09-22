@@ -1,9 +1,9 @@
 import { TaskRegistry, taskResult } from '@/composables/useApplying/handles'
 import { defineTaskHandler, defineTaskWorkflow } from '@/composables/useApplying/type'
 
-import { BossHelperCtx } from '.'
 import { getBossData, sendPublishReq } from './requests'
-import { BossZpJobItemData, BossZpDetailData, BossZpBossData } from './types'
+import type { BossHelperCtx } from './runtime'
+import type { BossZpJobItemData, BossZpDetailData, BossZpBossData } from './types'
 
 export type BoosJobData = {
   jobitem: BossZpJobItemData
@@ -37,48 +37,7 @@ export const bossWorkflow = defineTaskWorkflow<BossHelperCtx, BoosJobData>(
   defineTaskHandler(
     '岗位详情获取',
     () => async (ctx, job) => {
-      // const detail = await requestDetail({
-      //   securityId: job.rawData.jobitem.securityId,
-      //   lid: job.rawData.jobitem.encryptJobId,
-      // }).then((r) => r.zpData)
-
-      ctx.helper._clickJobCardAction(job.rawData.jobitem)
-      const detail = await new Promise<BossZpDetailData>((resolve, reject) => {
-        setTimeout(() => {
-          reject(new Error('bossZpDetailData获取超时'))
-        }, 1000 * 60)
-        const interval = setInterval(() => {
-          if (
-            ctx.helper._jobDetail.value &&
-            ctx.helper._jobDetail.value.lid === job.rawData.jobitem.lid
-          ) {
-            resolve(ctx.helper._jobDetail.value)
-            clearInterval(interval)
-          }
-        }, 100)
-      })
-
-      job.rawData.detail = detail
-      job.jobData = {
-        ...job.jobData,
-        activeTime: detail.brandComInfo.activeTime,
-        activeTimeStr: detail.bossInfo.activeTimeDesc,
-        jobDescription: detail.jobInfo.postDescription,
-        city: detail.jobInfo.locationName,
-        address: detail.jobInfo.address,
-        addressCoords: [detail.jobInfo.longitude, detail.jobInfo.latitude],
-        boss: {
-          ...job.jobData.boss,
-          isOnline: detail.bossInfo.bossOnline,
-          isCertificated: detail.bossInfo.certificated,
-        },
-        brand: {
-          ...job.jobData.brand,
-          labels: detail.brandComInfo.labels,
-          introduce: detail.brandComInfo.introduce,
-          stageName: detail.brandComInfo.stageName,
-        },
-      }
+      await ctx.helper.onJobCardClick(job.jobData.key)
     },
     {
       state: 'request',
@@ -90,6 +49,25 @@ export const bossWorkflow = defineTaskWorkflow<BossHelperCtx, BoosJobData>(
   tasks.jobAddress({ deps: ['岗位详情获取'] }), // 工作地址筛选
   tasks.jobFriendStatus({ deps: ['岗位详情获取'] }), // 好友状态过滤
   tasks.jobContent({ deps: ['岗位详情获取'] }), // 工作内容筛选
+
+  defineTaskHandler(
+    '金牌面试官',
+    (ctx) => {
+      if (!ctx.helper.conf.formData.bossGoldMedalHr.value) {
+        return
+      }
+      return async (_, { rawData }) => {
+        if (
+          rawData?.detail?.bossInfo?.avatarStickerUrl?.includes(
+            '492b4ca74ee6ee7bfecf8d0d363780c68ad8b582857d894c8eae833b21840fb6',
+          )
+        ) {
+          return taskResult.skip('金牌HR')
+        }
+      }
+    },
+    { deps: ['岗位详情获取'] },
+  ), // 金牌面试官过滤
 
   tasks.amap({ deps: ['岗位详情获取'] }), // 高德地图
   tasks.aiFiltering({ deps: ['岗位详情获取'] }), // AI过滤
@@ -110,7 +88,7 @@ export const bossWorkflow = defineTaskWorkflow<BossHelperCtx, BoosJobData>(
     //   securityId: rawData.jobitem.securityId,
     //   encryptJobId: rawData.jobitem.encryptJobId,
     // })
-    logger.info('获取Boss信息', {
+    ctx.log.info('获取Boss信息', {
       securityId: rawData.jobitem.securityId,
       encryptJobId: rawData.jobitem.encryptJobId,
     })

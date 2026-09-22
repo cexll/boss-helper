@@ -1,18 +1,20 @@
-import { Toast } from '@nuxt/ui/runtime/composables/useToast.js'
+import type { Toast } from '@nuxt/ui/runtime/composables/useToast.js'
 import { extendRef } from '@vueuse/core'
-import { Reactive, ref } from 'vue'
-import { Ref } from 'vue'
+import type { Reactive } from 'vue'
+import { ref } from 'vue'
+import type { Ref } from 'vue'
 
 import { useConf } from '@/composables/conf'
-import { DeliveryWorkflow } from '@/composables/useApplying'
+import type { DeliveryWorkflow } from '@/composables/useApplying'
 import type { BossHelperError } from '@/composables/useApplying/deliverError'
-import { TaskResult, WorkflowData } from '@/composables/useApplying/type'
+import type { TaskResult, WorkflowData } from '@/composables/useApplying/type'
 import { useModel } from '@/composables/useModel'
-import { ChatModel } from '@/composables/useModel/test'
-import { FormDataInput } from '@/types/formData'
+import { ChatModel } from '@/composables/useModel'
+import type { FormDataInput } from '@/types/formData'
 
-import { initNetConf, NetConf } from './netConf'
-import { Log, JobData, LogData } from './type'
+import type { NetConf } from './netConf'
+import { initNetConf } from './netConf'
+import type { Log, JobData, LogData, ConfigAccordionItem, AlertItem } from './type'
 
 export abstract class HelperContext<C extends HelperContext<C, T, S>, T, S> {
   netConf: Ref<NetConf | null>
@@ -27,9 +29,9 @@ export abstract class HelperContext<C extends HelperContext<C, T, S>, T, S> {
   jobResultMaps: Reactive<Map<string, TaskResult>>
 
   abstract jobList: Ref<JobData[]>
-  currentJob: Ref<string | null>
   abstract jobMaps: Map<string, WorkflowData<T, S>>
 
+  currentJob: Ref<string | null>
   _logs: Ref<Log[]>
   logs: {
     add: (job: JobData, err?: BossHelperError, logdata?: LogData, msg?: string) => void
@@ -37,8 +39,9 @@ export abstract class HelperContext<C extends HelperContext<C, T, S>, T, S> {
     clear: () => void
     value: Log[]
   }
-
+  pendingMessages: Ref<string | undefined>
   constructor() {
+    this.pendingMessages = ref()
     this.conf = useConf()
     this.models = useModel()
     this.statistics = useStatistics()
@@ -79,6 +82,8 @@ export abstract class HelperContext<C extends HelperContext<C, T, S>, T, S> {
 
   abstract loadMoreJob(delay: Promise<any>): Promise<boolean>
   abstract onMount(): Promise<void>
+  abstract getConfigItems(): ComputedRef<[AlertItem[], (ConfigAccordionItem | false)[]]>
+
   abstract start(): Promise<void>
   abstract sendMessage(data: WorkflowData<T, S>, msg: FormDataInput['value']): Promise<void>
   abstract get uid(): string
@@ -91,13 +96,13 @@ export abstract class HelperContext<C extends HelperContext<C, T, S>, T, S> {
   abstract get label(): string
 
   initNetConf() {
-    initNetConf().then((data) => {
+    void initNetConf().then((data) => {
       this.netConf.value = data
     })
     if (!this.netConfTimer) {
       this.netConfTimer = setInterval(
         () => {
-          initNetConf().then((data) => {
+          void initNetConf().then((data) => {
             this.netConf.value = data
           })
         },
@@ -132,5 +137,9 @@ export abstract class HelperContext<C extends HelperContext<C, T, S>, T, S> {
       ...opt?.toast,
       title: msg,
     })
+  }
+
+  async onJobCardClick(_key: string) {
+    throw new Error('Method not implemented.')
   }
 }

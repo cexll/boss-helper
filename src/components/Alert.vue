@@ -4,16 +4,12 @@ import { computed, onMounted, ref } from 'vue'
 
 import { counter } from '@/message'
 
-export interface ExtendedAlertProps extends AlertProps {
+export interface ExtendedAlertProps extends /* @vue-ignore */ AlertProps {
   id?: string
   showIcon?: boolean
 }
 
-const props = withDefaults(defineProps<ExtendedAlertProps>(), {
-  color: 'info',
-  variant: 'subtle',
-  orientation: 'horizontal',
-})
+const props = defineProps<ExtendedAlertProps>()
 
 const storageKey = computed(() => `local:alert:${props.id}`)
 const isVisible = ref(true)
@@ -51,6 +47,9 @@ const icon = computed(() => {
     @close="handleClose"
     :close="props.close ? props.close : props.id ? true : undefined"
     :icon="icon"
+    :color="props.color ?? 'info'"
+    :variant="props.variant ?? 'subtle'"
+    :orientation="props.orientation ?? 'horizontal'"
   >
     <slot />
     <template #title>

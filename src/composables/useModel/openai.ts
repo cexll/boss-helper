@@ -1,5 +1,5 @@
 import { createOpenAI } from '@ai-sdk/openai'
-import { LanguageModelV3 } from '@ai-sdk/provider'
+import type { LanguageModelV3 } from '@ai-sdk/provider'
 
 import { desc, other } from './common'
 import type { LLMConf, LLMInfo } from './type'

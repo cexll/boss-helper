@@ -1,16 +1,16 @@
+import type { ContextLogger } from 'devlog-ui'
 import { shallowRef, ref } from 'vue'
 
 import { PipelineCacheManager } from '@/composables/usePipelineCache'
 import type { PipelineCacheItem, ProcessorType } from '@/types/pipelineCache'
 
-import { HelperContext } from '../useHelper'
+import type { HelperContext } from '../useHelper'
 import { decideDeliveryLimitAbort, decideTaskErrorAbort } from './abortPolicy'
 import type { WorkflowAbortDecision } from './abortPolicy'
 import { DependencyMissingError } from './handles'
-import {
+import type {
   Handler,
   JobStatus,
-  jobStatusList,
   Task,
   TaskContext,
   TaskPipeline,
@@ -18,6 +18,7 @@ import {
   TaskStatus,
   WorkflowData,
 } from './type'
+import { jobStatusList } from './type'
 
 // 全局缓存管理器实例
 let cacheManager: PipelineCacheManager | null = null
@@ -65,7 +66,7 @@ export type DeliveryWorkflow<C extends HelperContext<C, T, S>, T, S> = Awaited<
 >
 
 function meginResults(res: void | TaskResult | Array<TaskResult | void>): TaskResult | void {
-  if (!res) return {}
+  if (!res) return
   if (Array.isArray(res)) {
     if (res.length === 0) return
     return res.reduce((acc: TaskResult, r) => {
@@ -79,6 +80,7 @@ function meginResults(res: void | TaskResult | Array<TaskResult | void>): TaskRe
         }
       }
       return {
+        id: acc.id || r.id,
         isSkip: acc.isSkip || r.isSkip,
         reason: [acc.reason, r.reason].filter(Boolean).join('\n') || undefined,
         status: mergedStatus,
@@ -112,12 +114,19 @@ export async function useDeliveryWorkflow<C extends HelperContext<C, T, S>, T, S
   const resolvedHandlers = new Map<string, Handler<C, T, S>>()
 
   const rebuild = async () => {
-    const _ctx: TaskContext<C, T, S> = { helper, now: new Date() }
+    const _ctx: TaskContext<C, T, S> = {
+      helper,
+      now: new Date(),
+      index: 0,
+      log: logger.withContext({ id: 'workflow-rebuild' }),
+    }
     const taskMap = new Map<string, Task<C, T, S>>()
     const _resolvedHandlers = new Map<string, any>()
     const errors = new Map<string, any>()
 
-    const rawTasks = items.flatMap((i) => (typeof i === 'function' ? { ...i() } : { ...i }))
+    const rawTasks = items.flatMap((i) =>
+      typeof i === 'function' ? { ...i() } : Array.isArray(i) ? i : { ...i },
+    )
     const requiredIds = new Set<string>()
     for (const task of rawTasks) {
       try {
@@ -136,7 +145,10 @@ export async function useDeliveryWorkflow<C extends HelperContext<C, T, S>, T, S
           if (result.after) task.after.push(...result.after)
         }
       } catch (e) {
-        errors.set(task.id, e)
+        errors.set(`${task.id}::${task.label}`, e)
+        _resolvedHandlers.set(task.id, async () => {
+          throw e
+        })
       }
     }
 
@@ -163,10 +175,10 @@ export async function useDeliveryWorkflow<C extends HelperContext<C, T, S>, T, S
     nodes.value = rawTasks.map((t) => {
       const isLastDefinition = taskMap.get(t.id)?.task === t.task
       const isResolved = _resolvedHandlers.has(t.id)
-      const error = errors.get(t.id)
+      const error = errors.get(`${t.id}::${t.label}`)
       let nStatus: TaskStatus = 'disabled'
-      if (error) nStatus = 'failed'
-      else if (!isLastDefinition) nStatus = 'shadowed'
+      if (!isLastDefinition) nStatus = 'shadowed'
+      else if (error) nStatus = 'failed'
       else if (isResolved) nStatus = 'active'
       else if (requiredIds.has(t.id)) nStatus = 'dependency_only'
 
@@ -178,15 +190,37 @@ export async function useDeliveryWorkflow<C extends HelperContext<C, T, S>, T, S
         error,
       }
     })
+    const errMsg = nodes.value
+      .map((i) => {
+        if (i.error) {
+          return `${i.label}: ${i.error instanceof Error ? i.error.message : JSON.stringify(i.error)}`
+        }
+      })
+      .filter(Boolean)
+      .join('\n')
+    if (errMsg) {
+      logger.error('工作流构建错误, 请检查配置:', errMsg)
+      alert(`工作流构建错误, 请检查配置:\n${errMsg}`)
+      errorMessage.value = errMsg
+    } else {
+      logger.debug('Pipeline rebuilt', jsonClone(pipeline.value))
+    }
   }
 
-  const executeTask = async (task: Task<C, T, S>, data: WorkflowData<T, S>) => {
+  const executeTask = async (
+    task: Task<C, T, S>,
+    data: WorkflowData<T, S>,
+    index: number,
+    log: ContextLogger,
+  ) => {
     let res: TaskResult | void = undefined
     const isStop = () => status.value === 'stop'
     const handler = resolvedHandlers.get(task.id)
     if (!handler || isStop()) return
 
     const fns = [...task.before, handler, ...task.after]
+    log = log.withContext({ task_id: task.id })
+
     for (const fn of fns) {
       try {
         res = meginResults(
@@ -194,6 +228,8 @@ export async function useDeliveryWorkflow<C extends HelperContext<C, T, S>, T, S
             {
               helper,
               now: new Date(),
+              index,
+              log,
             },
             data,
           ),
@@ -207,6 +243,8 @@ export async function useDeliveryWorkflow<C extends HelperContext<C, T, S>, T, S
               {
                 helper,
                 now: new Date(),
+                index,
+                log,
               },
               data,
             )
@@ -215,6 +253,8 @@ export async function useDeliveryWorkflow<C extends HelperContext<C, T, S>, T, S
                 {
                   helper,
                   now: new Date(),
+                  index,
+                  log,
                 },
                 data,
               ),
@@ -229,11 +269,21 @@ export async function useDeliveryWorkflow<C extends HelperContext<C, T, S>, T, S
     return res
   }
 
-  const execute = async (data: WorkflowData<T, S>): Promise<WorkflowAbortDecision | undefined> => {
+  const execute = async (
+    data: WorkflowData<T, S>,
+    index = 0,
+  ): Promise<WorkflowAbortDecision | undefined> => {
     const isStop = () => status.value === 'stop'
+    helper.statistics.todayData.value.total++
+    const log = logger.withContext({
+      id: 'workflow-execute',
+      job_key: data.jobData.key,
+      job_name: data.jobData.jobName,
+    })
     try {
       let skipPipeline = false
       let abortDecision: WorkflowAbortDecision | undefined
+      let errorLog = false
       for (const t of pipeline.value) {
         let res: void | TaskResult = undefined
         try {
@@ -242,7 +292,7 @@ export async function useDeliveryWorkflow<C extends HelperContext<C, T, S>, T, S
             status: t.state || 'running',
             msg: t.stateMsg || '运行中',
           })
-          res = await executeTask(t, data)
+          res = await executeTask(t, data, index, log)
           if (res != null) {
             res.msg ??= t.label ?? t.id
             res.status ??= res.isSkip ? 'warn' : undefined
@@ -256,11 +306,12 @@ export async function useDeliveryWorkflow<C extends HelperContext<C, T, S>, T, S
           res = {
             isSkip: true,
             status: 'error',
-            reason: `任务${t.label ?? t.id}执行失败: ${e instanceof Error ? e.message : e}`,
+            reason: `任务${t.label ?? t.id}执行失败: ${e instanceof Error ? e.message : JSON.stringify(e)}`,
             msg: `报错/${t.label ?? t.id}`,
           }
-          logger.error(`任务${t.label ?? t.id}执行失败`, e)
+          log.error(`任务${t.label ?? t.id}执行失败`, e)
           skipPipeline = true
+          errorLog = true
           const decision = decideTaskErrorAbort(e)
           if (decision.abort) {
             abortDecision = decision
@@ -273,9 +324,9 @@ export async function useDeliveryWorkflow<C extends HelperContext<C, T, S>, T, S
               ...res,
             })
             if (res.status) {
-              helper.statistics.todayData.tasks[t.id] ??= {}
-              helper.statistics.todayData.tasks[t.id][res.status] ??= 0
-              helper.statistics.todayData.tasks[t.id][res.status] += 1
+              helper.statistics.todayData.value.tasks[t.id] ??= {}
+              helper.statistics.todayData.value.tasks[t.id]![res.status] ??= 0
+              helper.statistics.todayData.value.tasks[t.id]![res.status]! += 1
             }
           }
         }
@@ -285,10 +336,10 @@ export async function useDeliveryWorkflow<C extends HelperContext<C, T, S>, T, S
           status: 'success',
           msg: '投递成功',
         })
-        helper.statistics.todayData.success += 1
-        helper.statistics.todayData.total += 1
-      } else {
-        helper.statistics.todayData.total += 1
+        helper.statistics.todayData.value.success++
+      } else if (!errorLog) {
+        const r = helper.jobResultMaps.get(data.jobData.key)
+        log.warn(`投递过滤: ${data.jobData.jobName}`, r?.msg, r?.reason)
       }
       return abortDecision
     } catch (e) {
@@ -324,14 +375,14 @@ export async function useDeliveryWorkflow<C extends HelperContext<C, T, S>, T, S
           helper.jobResultMaps.set(job.key, v)
         })
 
-        await delay(helper.conf.formData.delay.deliveryStarts, isStop)
+        await delay(helper.conf.formData.delayDeliveryStarts, isStop)
 
         for (const [index, jobData] of helper.jobList.value.entries()) {
           current.value = index + 1
           if (isStop()) break
 
           const limitDecision = decideDeliveryLimitAbort(
-            helper.statistics.todayData.success,
+            helper.statistics.todayData.value.success,
             helper.conf.formData.deliveryLimit.value,
           )
           if (limitDecision.abort) {
@@ -351,7 +402,7 @@ export async function useDeliveryWorkflow<C extends HelperContext<C, T, S>, T, S
           }
           helper.jobMaps.set(jobData.key, data)
           helper.currentJob.value = jobData.key
-          const abortDecision = await execute(data)
+          const abortDecision = await execute(data, index)
           if (abortDecision?.abort) {
             status.value = abortDecision.status
             stepMsg = abortDecision.reason
@@ -359,7 +410,7 @@ export async function useDeliveryWorkflow<C extends HelperContext<C, T, S>, T, S
           }
 
           const afterSuccessLimit = decideDeliveryLimitAbort(
-            helper.statistics.todayData.success,
+            helper.statistics.todayData.value.success,
             helper.conf.formData.deliveryLimit.value,
           )
           if (afterSuccessLimit.abort) {
@@ -368,11 +419,11 @@ export async function useDeliveryWorkflow<C extends HelperContext<C, T, S>, T, S
             break
           }
 
-          await delay(helper.conf.formData.delay.deliveryInterval, isStop)
+          await delay(helper.conf.formData.delayDeliveryInterval, isStop)
         }
         if (isStop()) break
         const hasMore = await helper.loadMoreJob(
-          delay(helper.conf.formData.delay.deliveryPageNext, isStop),
+          delay(helper.conf.formData.delayDeliveryPageNext, isStop),
         )
         if (!hasMore) {
           status.value = 'stop'
@@ -381,8 +432,8 @@ export async function useDeliveryWorkflow<C extends HelperContext<C, T, S>, T, S
         }
       }
     } catch (e) {
-      logger.error(e)
-      stepMsg = `未知错误: ${e}`
+      logger.error('投递未知错误', e)
+      stepMsg = `未知错误: ${e instanceof Error ? e.message : JSON.stringify(e)}`
     } finally {
       if (!stepMsg) {
         stepMsg = '投递结束'
@@ -393,7 +444,21 @@ export async function useDeliveryWorkflow<C extends HelperContext<C, T, S>, T, S
       } else {
         errorMessage.value = stepMsg
       }
-      helper.notification(stepMsg)
+      void helper.notification(stepMsg)
+
+      const now = new Date()
+      for (const t of pipeline.value) {
+        try {
+          await t.onEnd?.({
+            now,
+            helper,
+            index: 0,
+            log: logger.withContext({ id: 'workflow-end' }),
+          })
+        } catch (e) {
+          logger.error('onEnd error', t.id, e)
+        }
+      }
     }
   }
 

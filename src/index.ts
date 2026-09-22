@@ -1,11 +1,10 @@
 import ui from '@nuxt/ui/vue-plugin'
 import { createApp } from 'vue'
 
-import * as chat from '@/composables/useModel/test'
-
 import App from './App.vue'
 import AppMenu from './AppMenu.vue'
-import { HelperContext, HelperKey } from './composables/useHelper'
+import type { HelperContext } from './composables/useHelper'
+import { HelperKey } from './composables/useHelper'
 
 import AppStyle from '@/assets/main.css?inline'
 
@@ -62,5 +61,4 @@ export async function run<C extends HelperContext<C, T, S>, T, S>(ctx: HelperCon
     },
   )
   await ctx.onMount()
-  logger.info('BossHelper加载成功', chat)
 }

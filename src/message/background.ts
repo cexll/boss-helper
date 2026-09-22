@@ -1,5 +1,4 @@
 import type { Adapter, Message, OnMessage, SendMessage } from 'comctx'
-import { defineProxy } from 'comctx'
 import { openDB } from 'idb'
 
 import type { Browser } from '#imports'
@@ -108,14 +107,54 @@ export class BackgroundCounter {
 
 interface MessageMeta {
   url: string
+  injector: 'content' | 'popup'
 }
 
 export class ProvideBackgroundAdapter implements Adapter<MessageMeta> {
   sendMessage: SendMessage<MessageMeta> = async (message) => {
-    const tabs = await browser.tabs.query({ url: message.meta.url })
-    tabs.map((tab) => void browser.tabs.sendMessage(tab.id!, message))
+    switch (message.meta.injector) {
+      case 'content': {
+        const tabs = await browser.tabs.query({ url: message.meta.url })
+        void tabs.map((tab) => browser.tabs.sendMessage(tab.id!, message))
+        break
+      }
+      case 'popup': {
+        await browser.runtime.sendMessage(message).catch((error) => {
+          if (error.message.includes('Receiving end does not exist')) {
+            return
+          }
+          throw error
+        })
+        break
+      }
+    }
   }
+  onMessage: OnMessage<MessageMeta> = (callback) => {
+    const handler = (message?: Partial<Message<MessageMeta>>) => {
+      if (!message?.meta) {
+        return callback(message)
+      }
+      callback({
+        ...message,
+        meta: {
+          ...message.meta,
+          injector: message?.sender?.name as MessageMeta['injector'],
+        },
+      })
+    }
+    browser.runtime.onMessage.addListener(handler)
+    return () => browser.runtime.onMessage.removeListener(handler)
+  }
+}
 
+export class InjectBackgroundAdapter implements Adapter<MessageMeta> {
+  constructor(public name: MessageMeta['injector'] = 'content') {}
+  sendMessage: SendMessage<MessageMeta> = (message) => {
+    void browser.runtime.sendMessage(browser.runtime.id, {
+      ...message,
+      meta: { url: document.location.href, injector: this.name },
+    } satisfies Message<MessageMeta>)
+  }
   onMessage: OnMessage<MessageMeta> = (callback) => {
     const handler = (message?: Partial<Message<MessageMeta>>) => {
       callback(message)
@@ -124,7 +163,3 @@ export class ProvideBackgroundAdapter implements Adapter<MessageMeta> {
     return () => browser.runtime.onMessage.removeListener(handler)
   }
 }
-
-export const [provideBackgroundCounter] = defineProxy(() => new BackgroundCounter(), {
-  namespace: '__boss-helper-background__',
-})

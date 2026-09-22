@@ -92,37 +92,42 @@ interface UserInfo {
 }
 
 async function test() {
-  const data: ModelConf = JSON.parse(JSON.stringify(props.model || { name: '', key: '' }))
+  const data: ModelConf = jsonClone(props.model || { name: '', key: '' })
   data.name = createName.value
   data.data = jsonClone(llmFormData) as ModelConf['data'] & {}
 
   const model = openai.createModel(data.data)
 
-  logger.group('LLMTest')
+  const span = logger.span('LLMTest')
   try {
     const result = streamText({
       model: model,
       prompt: testIn.value,
     })
     testOut.value = ''
-    for await (const part of result.fullStream) {
-      logger.debug('TestResStream', part)
+    for await (const part of result.stream) {
+      span.info('TestResStream', part)
       if (part.type === 'reasoning-start') {
         testOut.value += '<思考过程>'
       } else if (part.type === 'reasoning-end') {
         testOut.value += '</思考过程>\n\n'
       } else if (part.type === 'text-delta' || part.type === 'reasoning-delta') {
         testOut.value += part.text
+      } else if (part.type === 'error') {
+        testOut.value += `\n\nerror: ${part.error}`
       }
     }
-  } catch (err: any) {
+  } catch (err) {
+    const errMsg = errorHandle(err)
+    logger.error('TestAIModelError', err)
     toast.add({
-      title: `${err}`,
+      title: errMsg,
       color: 'error',
     })
+    testOut.value += `\n\nerror: ${errMsg}`
   }
 
-  logger.groupEnd()
+  span.end()
 }
 
 function create() {
@@ -192,10 +197,10 @@ function create() {
       </div>
     </template>
   </UModal>
-  <UModal
+  <USlideover
     v-model:open="testShow"
     title="模型测试"
-    :ui="{ content: 'sm:max-w-[70%]' }"
+    :ui="{ content: 'max-w-lg' }"
     :dismissible="false"
   >
     <template #body>
@@ -237,5 +242,5 @@ function create() {
         <UButton @click="test"> 请求 </UButton>
       </div>
     </template>
-  </UModal>
+  </USlideover>
 </template>

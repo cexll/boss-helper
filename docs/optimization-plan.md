@@ -4,6 +4,8 @@
 （npm tarball `@typesafe-ai/sdk@0.6.0` + docs.typesafe.ai 检索快照）。
 状态：**方案，未实施**。所有涉及 `src/composables/useApplying/`、`src/entrypoints/boss/chat/` 的改动均为 AGENTS.md Critical Paths，需维护者白盒 review（即你本人把关）。
 
+> 0.5.2.2 合并提示：下文基于 0.5.0 的文件锚点与现状分析已过期，不能直接作为实施规格。上游已接入 `devlog-ui` 上下文日志、修复统计与自定义图片招呼，并将表单迁入 `Tabs/ConfigItem/Form/`、模型实现迁为 `useModel/chatModel.ts`。后续实施需重新核对对应章节；本文不表示这些拟议功能已经实现。
+
 ---
 
 ## 0. 先厘清一件事：Jev 不是第二个大模型
@@ -50,13 +52,13 @@ Jev 的两条硬约束写进设计：
 
 现状逐条（`handles.ts`）：
 
-| 筛选              | 现在                          | 问题                                                      |
+| 筛选 | 现在 | 问题 |
 | ----------------- | ----------------------------- | --------------------------------------------------------- | ------------------------------------------------------------------------------------------------- |
-| jobTitle (L142)   | `includes` 子串、忽略大小写   | 只能整表一个「包含/排除」布尔（`FormDataSelect.include`） |
-| company (L169)    | `includes`、**区分大小写**    | 与 jobTitle 行为不一致，英文公司名漏匹配                  |
-| jobContent (L244) | 每关键词 `new RegExp('(?<!(不 | 无).{0,5})'+kw+…)`                                        | 用户关键词**裸拼进正则** → 特殊字符直接 SyntaxError/误匹配（注入面，inferred→已核对源码拼接方式） |
-| hrPosition (L277) | trim 全等                     | 太脆                                                      |
-| jobAddress (L297) | 恒 skip unless 命中           | 帮助文本已声明，保持                                      |
+| jobTitle (L142) | `includes` 子串、忽略大小写 | 只能整表一个「包含/排除」布尔（`FormDataSelect.include`） |
+| company (L169) | `includes`、**区分大小写** | 与 jobTitle 行为不一致，英文公司名漏匹配 |
+| jobContent (L244) | 每关键词 `new RegExp('(?<!(不 | 无).{0,5})'+kw+…)` | 用户关键词**裸拼进正则** → 特殊字符直接 SyntaxError/误匹配（注入面，inferred→已核对源码拼接方式） |
+| hrPosition (L277) | trim 全等 | 太脆 |
+| jobAddress (L297) | 恒 skip unless 命中 | 帮助文本已声明，保持 |
 
 **改法（全部向后兼容，schema 只增不改）**：
 

@@ -1,5 +1,5 @@
-import { AlertProps } from '@nuxt/ui'
-import { Toast } from '@nuxt/ui/runtime/composables/useToast.js'
+import type { AlertProps } from '@nuxt/ui'
+import type { Toast } from '@nuxt/ui/runtime/composables/useToast.js'
 
 import { counter } from '@/message'
 
@@ -28,6 +28,7 @@ export interface NotificationNotification {
   data: Partial<Toast> & {
     url?: string
     duration?: number
+    [key: string]: any
   }
 }
 const netNotificationMap = new Map<string, boolean>()
@@ -47,6 +48,9 @@ async function netNotification(
   if (item.type === 'notification') {
     void toast.add({
       ...item.data,
+      type: 'foreground',
+      color: item.data.type as AlertProps['color'],
+      description: item.data.description ?? item.data.message ?? '',
       duration: 0,
       'onUpdate:open': () => {
         void counter.storageSet(
@@ -55,14 +59,18 @@ async function netNotification(
         )
       },
       onClick() {
-        item.data.url ?? window.open(item.data.url)
+        if (item.data.url) {
+          window.open(item.data.url)
+        }
       },
     })
   }
 }
 
 export async function initNetConf() {
-  const response = await fetch('https://testingcf.jsdelivr.net/gh/Ocyss/boss-helper/net-conf.json')
+  const response = await fetch(
+    'https://testingcf.jsdelivr.net/gh/Ocyss/boss-helper@main/net-conf.json',
+  )
   const data: NetConf = await response.json()
   const now = Date.now()
   for (const item of data.notification) {

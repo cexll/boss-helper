@@ -76,8 +76,8 @@ body {
     -webkit-mask-image,
     backdrop-filter;
   transform: translateZ(0);
-  backdrop-filter: blur(15px);
   -webkit-backdrop-filter: blur(15px);
+  backdrop-filter: blur(15px);
   background-color: #ffffff20;
   pointer-events: none;
   -webkit-mask-image: radial-gradient(

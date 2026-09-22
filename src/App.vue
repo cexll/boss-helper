@@ -1,5 +1,5 @@
 <script lang="ts" setup>
-import { TabsItem } from '@nuxt/ui'
+import type { TabsItem } from '@nuxt/ui'
 import { useRafFn } from '@vueuse/core'
 import { computed, onMounted, ref, shallowRef, watch } from 'vue'
 
@@ -14,14 +14,14 @@ import Logs from '@/components/Tabs/Logs.vue'
 import Statistics from '@/components/Tabs/Statistics.vue'
 import { useConf, appearanceConf } from '@/composables/conf'
 import { useModel } from '@/composables/useModel'
-import { useStatistics } from '@/composables/useStatistics'
 
 import { useHelper, VITE_VERSION } from './composables/useHelper'
 
 const model = useModel()
-const { todayData } = useStatistics()
-const conf = useConf()
+
 const helper = useHelper()
+const { todayData } = helper.statistics
+const conf = useConf()
 
 const items = computed<TabsItem[]>(() => {
   const configs = [
@@ -194,9 +194,7 @@ function onPointerMove(ev: PointerEvent) {
               今日投递: {{ todayData.success }}/{{ conf.formData.deliveryLimit.value }}
             </span>
             <span v-if="helper.workflow && helper.workflow.total.value > 0">
-              当前页面处理: {{ helper.workflow.current.value + 1 }}/{{
-                helper.workflow.total.value
-              }}
+              当前页面处理: {{ helper.workflow.current.value }}/{{ helper.workflow.total.value }}
             </span>
           </div>
 
@@ -228,7 +226,17 @@ function onPointerMove(ev: PointerEvent) {
             <template #logs><Logs /></template>
             <template #about><About /></template>
             <template #list-trailing>
-              <UButton class="ml-2" size="xs" color="primary" @click.stop="chatOpen = !chatOpen">
+              <UButton
+                class="ml-2"
+                size="xs"
+                color="primary"
+                @click.stop="
+                  () => {
+                    chatOpen = !chatOpen
+                  }
+                "
+                data-help="显示对话框, 使用ai功能必备可以方便的查询ai的输出, 并且可以调整招呼语. 不过功能未完善, 对话框使用体验还不行"
+              >
                 对话
               </UButton>
               <UButton
@@ -237,6 +245,7 @@ function onPointerMove(ev: PointerEvent) {
                 size="xs"
                 color="info"
                 @click.stop="tagOpen(helper.netConf.value.feedback)"
+                data-help="描述清楚, 并先检查有没有相同问题, 尽量不要重复提交问题"
               >
                 反馈
               </UButton>

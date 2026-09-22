@@ -1,4 +1,5 @@
-import { FormDataRange } from '@/types/formData'
+import { counter } from '@/message'
+import type { FormDataRange } from '@/types/formData'
 import { parseGptJson } from '@/utils/ai'
 
 export function rangeMatchFormat(v: FormDataRange, unit: string): string {
@@ -59,4 +60,42 @@ export function parseFiltering(content: string) {
   const message = `分数${rating}\n消极:${data?.negative?.reason}\n\n积极:${data?.positive?.reason}`
 
   return { res, message, rating, data }
+}
+
+export async function loadSet(key: string, uid: string): Promise<Map<string, number>> {
+  const raw = await counter.storageGet<Record<string, string[] | Record<string, number>>>(key, {})
+
+  const map = new Map<string, number>()
+
+  const value = raw[uid]
+
+  const entries = Array.isArray(value)
+    ? value.map((id) => [id, 0] as const)
+    : Object.entries(value ?? {})
+
+  for (const [id, time] of entries) {
+    map.set(id, time)
+  }
+
+  return map
+}
+
+export async function saveSet(key: string, uid: string, map: Map<string, number>, EXPIRE = 0) {
+  const now = Date.now()
+  const expire = now - EXPIRE
+  if (EXPIRE > 0) {
+    // GC
+    for (const [id, time] of map) {
+      if (time < expire) {
+        map.delete(id)
+      }
+    }
+  }
+
+  const old = await counter.storageGet(key, {})
+
+  await counter.storageSet(key, {
+    ...old,
+    [uid]: Object.fromEntries(map),
+  })
 }

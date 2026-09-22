@@ -10,7 +10,7 @@ import type {
 import { jsonClone } from '@/utils/deepmerge'
 import { logger } from '@/utils/logger'
 
-import { JobStatus } from './useApplying/type'
+import type { JobStatus } from './useApplying/type'
 
 const toast = useToast()
 

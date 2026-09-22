@@ -93,7 +93,7 @@ function formatLane() {
     fail2(`fmt:check exited ${r.code} unexpectedly`)
   }
   const tuples = []
-  for (const raw of `${r.stdout}\n${r.stderr}`.split('\n')) {
+  for (const raw of `${r.stdout}\n${r.stderr}`.replace(/\x1b\[[0-9;]*m/g, '').split('\n')) {
     const m =
       raw.trim().match(/^(.+ \[[\w.]+\]) \((\d+)ms\)$/) ||
       raw.trim().match(/^(.+?\.(?:ts|tsx|js|jsx|mjs|cjs|vue|css|json|md|html)) \((\d+)ms\)$/)

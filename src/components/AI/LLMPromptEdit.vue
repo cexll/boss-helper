@@ -1,18 +1,18 @@
 <script lang="ts" setup>
+import type { SelectMenuItem, TableColumn } from '@nuxt/ui'
+import UBadge from '@nuxt/ui/components/Badge.vue'
+import UButton from '@nuxt/ui/components/Button.vue'
+import UPopover from '@nuxt/ui/components/Popover.vue'
 import { h, reactive, ref } from 'vue'
 
 import JobCard from '@/components/JobCard.vue'
 import { formInfoData, defaultFormData, useConf } from '@/composables/conf'
+import { parseFiltering } from '@/composables/useApplying/utils'
+import { useHelper } from '@/composables/useHelper'
+import type { JobData } from '@/composables/useHelper'
 import { useModel } from '@/composables/useModel'
-
-//TODO import { parseFiltering } from '@/entrypoints/boss/requests'
-import { JobData, useHelper } from '@/composables/useHelper'
-import type { FormInfoAi, Prompt } from '@/types/formData'
+import type { Prompt } from '@/types/formData'
 import { logger } from '@/utils/logger'
-
-import Alert from '../Alert.vue'
-
-let parseFiltering = () => {}
 
 const props = defineProps<{
   data: 'aiGreeting' | 'aiFiltering' | 'aiReply'
@@ -23,6 +23,14 @@ const conf = useConf()
 const model = useModel()
 const show = defineModel<boolean>({ required: true })
 const currentModel = ref(conf.formData[props.data].model)
+const currentModelData = computed(() =>
+  model.modelData.value.find((v) => v.key === currentModel.value),
+)
+const modelItems = computed(() =>
+  model.modelData.value.map(
+    (v) => ({ ...v, avatar: { src: v.data?.avatar ?? '', loading: 'lazy' } }) as SelectMenuItem,
+  ),
+)
 
 const score = ref(props.data === 'aiFiltering' ? (conf.formData[props.data].score ?? 10) : 10)
 
@@ -52,27 +60,80 @@ interface TestData {
 }
 interface TestContent {
   time: string
-  prompt?: string
   reasoning_content?: string | null
   content?: string
 }
 
 const testData = reactive<Array<TestData>>([])
-const expandTestRowKeys = ref<string[]>([])
+const testExpanded = ref<Record<string, boolean>>({})
 const testDataContent = reactive<Record<string, TestContent[]>>({})
 
-function handleExpandChange(row: TestData) {
-  logger.info('handleExpandChange', row)
-  if (expandTestRowKeys.value.includes(row.key)) {
-    expandTestRowKeys.value = expandTestRowKeys.value.filter((v) => v !== row.key)
-  } else {
-    expandTestRowKeys.value.push(row.key)
-  }
-}
-
-function test() {
-  testDialog.value = true
-}
+const testTableColumns: TableColumn<TestData>[] = [
+  {
+    id: 'expand',
+    header: '',
+    cell: ({ row }) =>
+      h(UButton, {
+        color: 'neutral',
+        variant: 'ghost',
+        icon: 'i-lucide-chevron-down',
+        square: true,
+        size: 'xs',
+        'aria-label': 'Expand',
+        ui: {
+          leadingIcon: [
+            'transition-transform',
+            row.getIsExpanded() ? 'duration-200 rotate-180' : '',
+          ],
+        },
+        onClick: (event: MouseEvent) => {
+          event.stopPropagation()
+          row.toggleExpanded()
+        },
+      }),
+  },
+  {
+    id: 'jobName',
+    header: '岗位名',
+    accessorFn: (row) => row.job.jobName,
+    cell: ({ row }) =>
+      h(
+        UPopover,
+        {
+          mode: 'hover',
+          portal: testModelRef.value?.parentElement ?? false,
+        },
+        {
+          default: () =>
+            h('div', { class: 'flex items-center gap-1' }, [
+              row.original.loading
+                ? h(UBadge, {
+                    trailingIcon: 'i-line-md-loading-twotone-loop',
+                    variant: 'soft',
+                    color: 'neutral',
+                  })
+                : null,
+              h('span', row.original.job.jobName),
+            ]),
+          content: () => h(JobCard, { job: row.original.job, hover: false, style: 'width: 300px' }),
+        },
+      ),
+  },
+  {
+    id: 'jobDescription',
+    header: '内容',
+    accessorFn: (row) => row.job.jobDescription,
+    cell: ({ row }) =>
+      h(
+        'div',
+        {
+          class: 'truncate',
+          title: row.original.job.jobDescription,
+        },
+        row.original.job.jobDescription,
+      ),
+  },
+]
 
 const testJobLoading = ref(false)
 const testJobStop = ref(true)
@@ -85,7 +146,8 @@ async function addTestJob(n: number) {
       if (testData.some((v) => v.job.key === item.key)) {
         continue
       }
-      const data = helper.jobMaps.get(item.key) // 加载更多数据
+      await helper.onJobCardClick(item.key) // 触发加载更多数据
+      const data = helper.jobMaps.get(item.key)
       if (data) {
         item = data.jobData
       }
@@ -106,8 +168,6 @@ async function testJob() {
     testJobStop.value = true
     return
   }
-  testJobLoading.value = true
-  testJobStop.value = false
   const md = model.modelData.value.find((v) => currentModel.value === v.key)
   if (!currentModel.value || !md) {
     toast.add({
@@ -116,39 +176,57 @@ async function testJob() {
     })
     return
   }
+  testJobLoading.value = true
+  testJobStop.value = false
   try {
-    // const gpt = model.getModel(md!, message.value)
+    if (
+      !helper.chatModel.createAgent(
+        {
+          prompt: message.value,
+          model: currentModel.value,
+          enable: true,
+        },
+        props.data === 'aiFiltering' ? 'filtering' : 'greetings',
+        {
+          json: props.data === 'aiFiltering',
+        },
+      )
+    ) {
+      throw new Error('AI模型未配置, 初始化失败')
+    }
     const handle = async (item: TestData) => {
       if (testJobStop.value) {
         return
       }
+
       try {
-        // item.loading = true
-        // let { content, prompt, reasoning_content } = await gpt.doStream(
-        //   {
-        //     data: {
-        //       data: item.job,
-        //       card: item.job.card!,
-        //     },
-        //     test: true,
-        //     json: props.data === 'aiFiltering',
-        //   },
-        //   props.data,
-        // )
-        // if (props.data === 'aiFiltering' && content) {
-        //   const { message } = parseFiltering(content)
-        //   content = message ?? content
-        // }
-        // testDataContent[item.key].push({
-        //   time: new Date().toLocaleTimeString('zh-CN', { hour12: false }),
-        //   prompt,
-        //   reasoning_content,
-        //   content,
-        // })
-      } catch (err: any) {
-        logger.error(err)
+        const content = await helper.chatModel
+          .chat(
+            props.data === 'aiFiltering' ? 'filtering' : 'greetings',
+            {
+              jobData: item.job,
+              rawData: null,
+              state: {},
+            },
+            {
+              disableMessages: true,
+            },
+          )
+          .then((r) => Promise.all([r.text, r.finalStep.then((x) => x.reasoningText)]))
+        if (props.data === 'aiFiltering' && content[0]) {
+          const { message } = parseFiltering(content[0])
+          content[0] = message ?? content[0]
+        }
+        testDataContent[item.key]?.push({
+          time: new Date().toLocaleTimeString('zh-CN', { hour12: false }),
+          reasoning_content: content[1],
+          content: content[0],
+        })
+      } catch (err) {
+        const errMsg = errorHandle(err)
+        logger.error('TestJobError', err)
         toast.add({
-          title: err.message,
+          title: errMsg,
           color: 'error',
         })
       } finally {
@@ -161,7 +239,7 @@ async function testJob() {
       await Promise.all(batch.map(handle))
     }
   } catch (err: any) {
-    logger.error(err)
+    logger.error('TestJobError', err)
     toast.add({
       title: err.message,
       color: 'error',
@@ -192,10 +270,6 @@ async function savePrompt() {
 
 const promptModelRef = useTemplateRef('promptModel')
 const testModelRef = useTemplateRef('testModel')
-
-onMounted(() => {
-  logger.info('LLMPromptEdit mounted', { promptModelRef, testModelRef })
-})
 </script>
 
 <template>
@@ -220,39 +294,20 @@ onMounted(() => {
           <UButton color="info" @click="inputExample"> 填入示例值 </UButton>
           <USelectMenu
             v-model="currentModel"
-            :items="model.modelData.value"
+            :items="modelItems"
             labelKey="name"
             valueKey="key"
             placeholder="选择模型"
             :portal="promptModelRef?.parentElement ?? false"
+            :avatar="{
+              src: currentModelData?.data?.avatar,
+              loading: 'lazy',
+            }"
           >
-            <!-- <template #item="{ item }">
-              <div style="display: flex">
-                <span
-                  v-if="item.vip != null"
-                  style="align-items: center; display: inline-flex; margin-right: 6px"
-                  v-html="llmIcon.vip"
-                />
-                <span>{{ item.name }}</span>
-              </div>
-            </template>
-            <template #create-item-label="{ item }">
-              <div style="display: flex">
-                <span
-                  v-if="item.startsWith('vip-')"
-                  style="align-items: center; display: inline-flex; margin-right: 6px"
-                  v-html="llmIcon.vip"
-                />
-                <span>{{ item }}</span>
-              </div>
-            </template> -->
           </USelectMenu>
         </div>
       </div>
       <div v-pre>
-        <Alert v-if="currentModel?.startsWith('vip-')" id="vip-alert" title="注意" type="warning">
-          会员模型暂时不支持输出 思考过程, 比如deepseekR1，但是不影响模型能力
-        </Alert>
         使用 {{}} 来渲染变量。
         <ULink
           to="https://github.com/Ocyss/boss-helper/blob/master/src/types/bossData.d.ts"
@@ -302,17 +357,21 @@ onMounted(() => {
       >
         关闭
       </UButton>
-      <UButton color="neutral" variant="soft" @click="test"> 测试 </UButton>
+      <UButton
+        color="neutral"
+        variant="soft"
+        @click="
+          () => {
+            testDialog = true
+          }
+        "
+      >
+        测试
+      </UButton>
       <UButton color="primary" @click="savePrompt"> 保存 </UButton>
     </template>
   </UModal>
-  <UModal
-    v-model:open="testDialog"
-    title="Prompt 测试"
-    :ui="{ content: 'sm:max-w-3xl' }"
-    :dismissible="false"
-    scrollable
-  >
+  <USlideover v-model:open="testDialog" title="Prompt 测试" :ui="{ content: 'max-w-lg' }">
     <template #body>
       <div class="flex gap-2 mb-4" ref="testModel">
         <UButton :loading="testJobLoading" @click="addTestJob(1)" color="neutral">
@@ -326,102 +385,47 @@ onMounted(() => {
         </UButton>
       </div>
       <div class="overflow-auto">
-        <table class="w-full border-collapse">
-          <thead>
-            <tr class="border-b border-gray-200">
-              <th style="width: 32px"></th>
-              <th style="width: 180px; text-align: left; padding: 8px">岗位名</th>
-              <th style="text-align: left; padding: 8px">内容</th>
-            </tr>
-          </thead>
-          <tbody>
-            <template v-for="row in testData" :key="row.key">
-              <tr
-                class="border-b border-gray-100 cursor-pointer hover:bg-gray-50"
-                @click="handleExpandChange(row)"
-              >
-                <td style="padding: 4px; text-align: center">
-                  <UButton
-                    variant="ghost"
-                    size="xs"
-                    :icon="
-                      expandTestRowKeys.includes(row.key)
-                        ? 'i-lucide-chevron-down'
-                        : 'i-lucide-chevron-right'
-                    "
-                  />
-                </td>
-                <td style="width: 180px; padding: 8px">
-                  <UPopover mode="hover" :portal="testModelRef?.parentElement ?? false">
-                    <div class="flex items-center">
-                      <UIcon v-if="row.loading" name="i-line-md-loading-twotone-loop" />
-                      {{ row.job.jobName }}
-                    </div>
-                    <template #content>
-                      <JobCard :job="row.job" :hover="false" style="width: 300px" />
-                    </template>
-                  </UPopover>
-                </td>
-                <td style="padding: 8px">
+        <UTable
+          v-model:expanded="testExpanded"
+          :data="testData"
+          :get-row-id="(row: TestData) => row.key"
+          :columns="testTableColumns"
+          :ui="{ tr: 'data-[expanded=true]:bg-elevated/40' }"
+        >
+          <template #expanded="{ row }">
+            <div class="test-content-wrapper">
+              <div class="test-content-list">
+                <div
+                  v-for="(item, index) in (testDataContent[row.original.key] ?? []).slice(-3)"
+                  :key="`${row.original.key}-${item.time}-${index}`"
+                  class="test-content-item"
+                >
+                  <div class="test-content-time">
+                    {{ item.time }}
+                  </div>
+
                   <div
-                    :title="row.job.jobDescription"
-                    style="overflow: hidden; text-overflow: ellipsis; white-space: nowrap"
+                    v-if="item.reasoning_content"
+                    class="test-content-reasoning-content"
+                    :title="item.reasoning_content"
                   >
-                    {{ row.job.jobDescription }}
+                    {{ item.reasoning_content }}
                   </div>
-                </td>
-              </tr>
-              <tr v-if="expandTestRowKeys.includes(row.key)">
-                <td colspan="3">
-                  <div class="test-content-wrapper">
-                    <div class="test-content-list">
-                      <div
-                        v-for="item in testDataContent[row.key].slice(-3)"
-                        :key="item.time"
-                        class="test-content-item"
-                      >
-                        <div class="test-content-time">
-                          {{ item.time }}
-                        </div>
-                        <div v-if="item.prompt" class="test-content-prompt" :title="item.prompt">
-                          {{ item.prompt }}
-                        </div>
-                        <div
-                          v-if="item.reasoning_content"
-                          class="test-content-reasoning-content"
-                          :title="item.reasoning_content"
-                        >
-                          {{ item.reasoning_content }}
-                        </div>
-                        <div class="test-content-content" :title="item.content">
-                          {{ item.content }}
-                        </div>
-                      </div>
-                    </div>
+                  <div class="test-content-content" :title="item.content">
+                    {{ item.content }}
                   </div>
-                </td>
-              </tr>
-            </template>
-          </tbody>
-        </table>
+                </div>
+              </div>
+            </div>
+          </template>
+        </UTable>
       </div>
     </template>
-    <template #footer>
-      <UButton
-        color="neutral"
-        variant="outline"
-        @click="
-          () => {
-            testDialog = false
-          }
-        "
-      >
-        取消
-      </UButton>
+    <template #footer="{ close }">
+      <UButton color="neutral" variant="outline" @click="close"> 取消 </UButton>
       <UButton color="primary" @click="testJob">
         {{ testJobStop ? '开始测试' : '停止测试' }}
       </UButton>
     </template>
-  </UModal>
+  </USlideover>
 </template>
-x

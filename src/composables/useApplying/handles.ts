@@ -1,13 +1,15 @@
-import { counter } from '@/message'
 import { renderTemplate } from '@/utils/ai'
-import { HelperContext } from '~/composables/useHelper'
+import type { HelperContext } from '~/composables/useHelper'
 
 import { sameCompanyKey, sameHrKey } from '../../entrypoints/boss/requests'
-import { defineTaskHandler, JobStatus, TaskContext, TaskResult } from './type'
-import { parseFiltering, rangeMatch, rangeMatchFormat } from './utils'
+import type { JobStatus, TaskContext, TaskResult } from './type'
+import { defineTaskHandler } from './type'
+import { loadSet, parseFiltering, rangeMatch, rangeMatchFormat, saveSet } from './utils'
 
-export class DependencyMissingError {
-  constructor(public taskId: string) {}
+export class DependencyMissingError extends Error {
+  constructor(public taskId: string) {
+    super(`Task dependency missing: ${taskId}`)
+  }
 }
 
 export class HelperConfigError {
@@ -37,22 +39,17 @@ function amapHandler<C extends HelperContext<C, T, S>, T, S>(
   amap?: { ok: boolean; distance: number; duration: number },
 ): TaskResult | void {
   if (!amap || amap.ok === false) {
-    return {
-      isSkip: true,
-      reason: '高德地图未初始化',
-    }
+    return taskResult.skip('高德地图未初始化')
   }
   if (distance > 0 && amap.distance > distance * 1000) {
-    return {
-      isSkip: true,
-      reason: `${id}距离超标: ${amap.distance / 1000} 设定: ${ctx.helper.conf.formData.amap.straightDistance}`,
-    }
+    return taskResult.skip(
+      `${id}距离超标: ${amap.distance / 1000} 设定: ${ctx.helper.conf.formData.amap.straightDistance}`,
+    )
   }
   if (duration > 0 && amap.duration > duration * 60) {
-    return {
-      isSkip: true,
-      reason: `${id}时间超标: ${amap.duration / 60} 设定: ${ctx.helper.conf.formData.amap.drivingDuration}`,
-    }
+    return taskResult.skip(
+      `${id}时间超标: ${amap.duration / 60} 设定: ${ctx.helper.conf.formData.amap.drivingDuration}`,
+    )
   }
 }
 
@@ -76,29 +73,35 @@ export class TaskRegistry<C extends HelperContext<C, T, S>, T, S = {}> {
       if (!ctx.helper.conf.formData.sameCompanyFilter.value) {
         return
       }
-      const someSet: Set<string> = new Set<string>()
-      const data = await counter.storageGet<Record<string, string[]>>(sameCompanyKey, {})
-      for (const id of data[ctx.helper.uid] ?? []) {
-        someSet.add(id)
-      }
+      const someSet = await loadSet(sameCompanyKey, ctx.helper.uid)
       return {
         fn: async (_, { jobData: data }) => {
           if (someSet.has(data.key)) {
+            ctx.helper.statistics.todayData.value.repeat++
             return taskResult.skip('相同公司已投递')
           }
         },
         after: [
           async (ctx, { jobData: data }) => {
-            someSet.add(data.key)
-            if (someSet.size % 3 === 0) {
-              const oldData = await counter.storageGet<Record<string, string[]>>(sameCompanyKey, {})
-              await counter.storageSet(sameCompanyKey, {
-                ...oldData,
-                [ctx.helper.uid]: Array.from(someSet ?? []),
-              })
+            someSet.set(data.key, Date.now())
+            if (ctx.index % 3 === 0) {
+              await saveSet(
+                sameCompanyKey,
+                ctx.helper.uid,
+                someSet,
+                ctx.helper.conf.formData.sameCompanyFilter.expire,
+              )
             }
           },
         ],
+        onEnd: async (ctx) => {
+          await saveSet(
+            sameCompanyKey,
+            ctx.helper.uid,
+            someSet,
+            ctx.helper.conf.formData.sameCompanyFilter.expire,
+          )
+        },
       }
     },
     { label: '相同公司' },
@@ -110,30 +113,35 @@ export class TaskRegistry<C extends HelperContext<C, T, S>, T, S = {}> {
       if (!ctx.helper.conf.formData.sameHrFilter.value) {
         return
       }
-      const someSet: Set<string> | null = new Set<string>()
-      const data = await counter.storageGet<Record<string, string[]>>(sameHrKey, {})
-      for (const id of data[ctx.helper.uid] ?? []) {
-        someSet.add(id)
-      }
-
+      const someSet = await loadSet(sameHrKey, ctx.helper.uid)
       return {
         fn: async (_, { jobData: data }) => {
           if (data.key != null && someSet.has(data.key)) {
+            ctx.helper.statistics.todayData.value.repeat++
             return taskResult.skip('相同hr已投递')
           }
         },
         after: [
           async (ctx, { jobData: data }) => {
-            someSet.add(data.key)
-            if (someSet.size % 3 === 0) {
-              const oldData = await counter.storageGet<Record<string, string[]>>(sameHrKey, {})
-              await counter.storageSet(sameHrKey, {
-                ...oldData,
-                [ctx.helper.uid]: Array.from(someSet ?? []),
-              })
+            someSet.set(data.key, Date.now())
+            if (ctx.index % 3 === 0) {
+              await saveSet(
+                sameHrKey,
+                ctx.helper.uid,
+                someSet,
+                ctx.helper.conf.formData.sameHrFilter.expire,
+              )
             }
           },
         ],
+        onEnd: async (ctx) => {
+          await saveSet(
+            sameHrKey,
+            ctx.helper.uid,
+            someSet,
+            ctx.helper.conf.formData.sameHrFilter.expire,
+          )
+        },
       }
     },
     { label: '相同HR' },
@@ -151,10 +159,7 @@ export class TaskRegistry<C extends HelperContext<C, T, S>, T, S = {}> {
           if (ctx.helper.conf.formData.jobTitle.include) {
             return
           }
-          return {
-            isSkip: true,
-            reason: `岗位名含有排除关键词 [${x}]`,
-          }
+          return taskResult.skip(`岗位名含有排除关键词 [${x}]`)
         }
       }
       if (ctx.helper.conf.formData.jobTitle.include) {
@@ -169,10 +174,7 @@ export class TaskRegistry<C extends HelperContext<C, T, S>, T, S = {}> {
     }
     return async (_ctx, { jobData: data }) => {
       if (data?.boss.isHeadhunter === true) {
-        return {
-          isSkip: true,
-          reason: '猎头过滤',
-        }
+        return taskResult.skip('猎头过滤')
       }
     }
   })
@@ -191,10 +193,7 @@ export class TaskRegistry<C extends HelperContext<C, T, S>, T, S = {}> {
           if (ctx.helper.conf.formData.company.include) {
             return
           }
-          return {
-            isSkip: true,
-            reason: `公司名含有排除关键词 [${x}]`,
-          }
+          return taskResult.skip(`公司名含有排除关键词 [${x}]`)
         }
       }
       if (ctx.helper.conf.formData.company.include) {
@@ -218,10 +217,9 @@ export class TaskRegistry<C extends HelperContext<C, T, S>, T, S = {}> {
       for (const key of arr) {
         if (text.includes(key[0])) {
           if (!rangeMatch(text, key[1])) {
-            return {
-              isSkip: true,
-              reason: `不匹配的薪资范围 ${text}, 预期: ${rangeMatchFormat(key[1], key[0])}`,
-            }
+            return taskResult.skip(
+              `不匹配的薪资范围 ${text}, 预期: ${rangeMatchFormat(key[1], key[0])}`,
+            )
           }
         }
       }
@@ -256,10 +254,7 @@ export class TaskRegistry<C extends HelperContext<C, T, S>, T, S = {}> {
           if (ctx.helper.conf.formData.jobContent.include) {
             return
           }
-          return {
-            isSkip: true,
-            reason: `工作内容含有排除关键词 [${x}]`,
-          }
+          return taskResult.skip(`工作内容含有排除关键词 [${x}]`)
         }
       }
       if (ctx.helper.conf.formData.jobContent.include) {
@@ -282,10 +277,7 @@ export class TaskRegistry<C extends HelperContext<C, T, S>, T, S = {}> {
           if (ctx.helper.conf.formData.hrPosition.include) {
             return
           }
-          return {
-            isSkip: true,
-            reason: `Hr职位在黑名单中 ${content}`,
-          }
+          return taskResult.skip(`Hr职位在黑名单中: ${content}`)
         }
       }
       if (ctx.helper.conf.formData.hrPosition.include) {
@@ -311,16 +303,10 @@ export class TaskRegistry<C extends HelperContext<C, T, S>, T, S = {}> {
           if (ctx.helper.conf.formData.jobAddress.include) {
             return
           }
-          return {
-            isSkip: true,
-            reason: `工作地址含有排除关键词 [${x}]`,
-          }
+          return taskResult.skip(`工作地址含有排除关键词 [${x}]`)
         }
       }
-      return {
-        isSkip: true,
-        reason: `工作地址不包含关键词: ${content}`,
-      }
+      return taskResult.skip(`工作地址不包含关键词: ${content}`)
     }
   })
 
@@ -330,10 +316,7 @@ export class TaskRegistry<C extends HelperContext<C, T, S>, T, S = {}> {
     }
     return async (_, { jobData }) => {
       if (jobData.boss?.isFriend === true) {
-        return {
-          isSkip: true,
-          reason: '已经是好友了',
-        }
+        return taskResult.skip('已经是好友了')
       }
     }
   })
@@ -372,20 +355,22 @@ export class TaskRegistry<C extends HelperContext<C, T, S>, T, S = {}> {
     return async (_, { jobData }) => {
       const activeText = jobData.activeTimeStr
       const activeTime = jobData.activeTime
-      // TODO: 暂时先用文本匹配吧, activeTime 备用(没确认是否准确)
+
       if (!activeText && !activeTime) {
+        ctx.helper.statistics.todayData.value.activityFilter++
         return taskResult.skip(`无活跃内容,如果全失败请反馈`)
       } else if (!activeText && activeTime) {
         if (ctx.now.getTime() - activeTime >= 7 * 24 * 60 * 60 * 1000) {
-          return {
-            isSkip: true,
-            reason: `不活跃 [${new Date(activeTime).toLocaleString()}]`,
-          }
+          ctx.helper.statistics.todayData.value.activityFilter++
+          return taskResult.skip(`不活跃 [${new Date(activeTime).toLocaleString()}]`)
         }
       } else if (!activeText) {
+        ctx.helper.statistics.todayData.value.activityFilter++
         return taskResult.skip(`无活跃信息,如果全失败请反馈`)
-      } else if (activeText.includes('月') || activeText.includes('年'))
+      } else if (activeText.includes('月') || activeText.includes('年')) {
+        ctx.helper.statistics.todayData.value.activityFilter++
         return taskResult.skip(`不活跃, [${activeText}]`)
+      }
     }
   })
 
@@ -402,7 +387,20 @@ export class TaskRegistry<C extends HelperContext<C, T, S>, T, S = {}> {
         // }
         let msg = ctx.helper.conf.formData.customGreeting.value
         if (ctx.helper.conf.formData.greetingVariable.value) {
-          msg = renderTemplate(msg, data)
+          if (Array.isArray(msg)) {
+            msg = msg.map((item) => {
+              if (item.type === 'text') {
+                return {
+                  ...item,
+                  content: renderTemplate(item.content, data),
+                }
+              } else {
+                return item
+              }
+            })
+          } else {
+            msg = renderTemplate(msg, data)
+          }
         }
 
         // ctx.message = msg
@@ -457,10 +455,7 @@ export class TaskRegistry<C extends HelperContext<C, T, S>, T, S = {}> {
       state.amap.distance = await amapDistance(state.amap.geocode.location)
 
       if (state.amap == null || state.amap.distance == null) {
-        return {
-          isSkip: true,
-          reason: 'api数据异常',
-        }
+        return taskResult.skip('api数据异常')
       }
       return [
         amapHandler(

@@ -8,10 +8,12 @@
 import fs from 'node:fs'
 import path from 'node:path'
 
+import { parse } from '@typescript-eslint/typescript-estree'
+
 import { REPO_ROOT, fail2, exitWith } from './gates-lib.mjs'
 
 const wantAll = process.argv.includes('--all')
-const browsers = wantAll ? ['chrome-mv3', 'firefox-mv2', 'edge-mv3'] : ['chrome-mv3']
+const browsers = wantAll ? ['chrome-mv3', 'firefox-mv3', 'edge-mv3'] : ['chrome-mv3']
 const outRoot = path.join(REPO_ROOT, '.output')
 const failures = []
 
@@ -49,7 +51,7 @@ for (const b of browsers) {
     Array.isArray(m.permissions) && m.permissions.includes('storage'),
     `${b}: storage permission missing — extension cannot persist config`,
   )
-  for (const need of ['storage', 'cookies', 'notifications']) {
+  for (const need of ['storage', 'notifications']) {
     check(
       m.permissions?.includes(need),
       `${b}: permission "${need}" missing (declared in wxt.config.ts)`,
@@ -71,6 +73,20 @@ for (const b of browsers) {
         (fs.existsSync(path.join(dir, 'background.js')) ||
           fs.existsSync(path.join(dir, 'common', 'background.js'))))
     check(present, `${b}: expected built entry missing: ${f}`)
+  }
+  const bossPath = path.join(dir, 'boss.js')
+  check(fs.existsSync(bossPath), `${b}: boss.js missing`)
+  if (fs.existsSync(bossPath)) {
+    const ast = parse(fs.readFileSync(bossPath, 'utf8'), { sourceType: 'script' })
+    const visit = (node) => {
+      if (!node || typeof node !== 'object') return
+      check(node.type !== 'ImportExpression', `${b}: boss.js contains a runtime import`)
+      for (const value of Object.values(node)) {
+        if (Array.isArray(value)) value.forEach(visit)
+        else if (value && typeof value === 'object') visit(value)
+      }
+    }
+    visit(ast)
   }
   // locales shipped
   check(

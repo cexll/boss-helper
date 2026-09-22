@@ -1,6 +1,9 @@
-import { HelperContext, JobData } from '@/composables/useHelper'
+import type { ContextLogger } from 'devlog-ui'
 
-import { DeliveryWorkflow, useDeliveryWorkflow } from '.'
+import type { HelperContext, JobData } from '@/composables/useHelper'
+
+import type { DeliveryWorkflow } from '.'
+import { useDeliveryWorkflow } from '.'
 import { DependencyMissingError } from './handles'
 
 export type Task<C extends HelperContext<C, T, S>, T, S> = {
@@ -13,6 +16,7 @@ export type Task<C extends HelperContext<C, T, S>, T, S> = {
   desc?: string
   state?: JobStatus
   stateMsg?: string
+  onEnd?: (ctx: TaskContext<C, T, S>) => void | Promise<void>
 }
 
 export type TaskPipeline<C extends HelperContext<C, T, S>, T, S> = Array<Task<C, T, S>>
@@ -20,6 +24,8 @@ export type TaskPipeline<C extends HelperContext<C, T, S>, T, S> = Array<Task<C,
 export type TaskContext<C extends HelperContext<C, T, S>, T = any, S = any> = {
   now: Date
   helper: C
+  index: number
+  log: ContextLogger
 }
 
 export const jobStatusList = [
@@ -56,6 +62,7 @@ export type TaskResult = {
   status?: JobStatus
   msg?: string
   isCache?: boolean
+  id?: string
 }
 
 export type Handler<C extends HelperContext<C, T, S>, T, S> = (
@@ -66,13 +73,17 @@ export type Handler<C extends HelperContext<C, T, S>, T, S> = (
 export type TaskHandler<C extends HelperContext<C, T, S>, T, S> =
   | ((ctx: TaskContext<C, T, S>) => Promise<Handler<C, T, S> | void>)
   | ((ctx: TaskContext<C, T, S>) => Handler<C, T, S> | void)
-  | ((
-      ctx: TaskContext<C, T, S>,
-    ) => { fn: Handler<C, T, S>; before?: Handler<C, T, S>[]; after?: Handler<C, T, S>[] } | void)
+  | ((ctx: TaskContext<C, T, S>) => {
+      fn: Handler<C, T, S>
+      before?: Handler<C, T, S>[]
+      after?: Handler<C, T, S>[]
+      onEnd?: (ctx: TaskContext<C, T, S>) => void | Promise<void>
+    } | void)
   | ((ctx: TaskContext<C, T, S>) => Promise<{
       fn: Handler<C, T, S>
       before?: Handler<C, T, S>[]
       after?: Handler<C, T, S>[]
+      onEnd?: (ctx: TaskContext<C, T, S>) => void | Promise<void>
     } | void>)
 
 export function defineTaskHandler<C extends HelperContext<C, T, S>, T, S>(
@@ -86,6 +97,7 @@ export function defineTaskHandler<C extends HelperContext<C, T, S>, T, S>(
     desc?: string
     state?: JobStatus
     stateMsg?: string
+    onEnd?: (ctx: TaskContext<C, T, S>) => void | Promise<void>
   },
 ): (options?: {
   task?: TaskHandler<C, T, S>
@@ -96,6 +108,7 @@ export function defineTaskHandler<C extends HelperContext<C, T, S>, T, S>(
   desc?: string
   state?: JobStatus
   stateMsg?: string
+  onEnd?: (ctx: TaskContext<C, T, S>) => void | Promise<void>
 }) => Task<C, T, S> {
   return (options) => {
     const {
@@ -107,6 +120,7 @@ export function defineTaskHandler<C extends HelperContext<C, T, S>, T, S>(
       desc: s = opt?.desc,
       state: st = opt?.state,
       stateMsg: sm = opt?.stateMsg,
+      onEnd: oe = opt?.onEnd,
     } = options || {}
     return {
       id,
@@ -118,6 +132,7 @@ export function defineTaskHandler<C extends HelperContext<C, T, S>, T, S>(
       desc: s,
       state: st,
       stateMsg: sm,
+      onEnd: oe,
     }
   }
 }
@@ -136,16 +151,19 @@ export function defineTaskWorkflow<C extends HelperContext<C, T, S>, T, S = {}>(
 
   return async (_ctx: C) => useDeliveryWorkflow(allDefinitions, _ctx)
 }
-
 export function createLazyObject<T extends object>(taskId: string): T {
   let _data: T | undefined
   let _initialized = false
 
   return new Proxy({} as T, {
     get(target, prop, receiver) {
-      if (!_initialized) {
-        if (prop === '__isProxy') return true
+      if (prop === '__isProxy') return true
+      if (prop === '__initialized') return _initialized
 
+      if (typeof prop === 'symbol' || prop.startsWith('__v_')) {
+        return undefined
+      }
+      if (!_initialized) {
         throw new DependencyMissingError(taskId)
       }
       return Reflect.get(_data!, prop, receiver)
@@ -159,10 +177,29 @@ export function createLazyObject<T extends object>(taskId: string): T {
       return true
     },
     getOwnPropertyDescriptor(target, prop) {
+      if (
+        prop === '__isProxy' ||
+        prop === '__initialized' ||
+        (typeof prop === 'string' && prop.startsWith('__v_'))
+      ) {
+        return {
+          configurable: true,
+          enumerable: false,
+          writable: false,
+          value: prop === '__isProxy' ? true : prop === '__initialized' ? _initialized : undefined,
+        }
+      }
       return _initialized ? Reflect.getOwnPropertyDescriptor(_data!, prop) : undefined
     },
     ownKeys() {
       return _initialized ? Reflect.ownKeys(_data!) : []
     },
   })
+}
+
+export function isInitialized(val: any): boolean {
+  if (val && typeof val === 'object' && val.__isProxy) {
+    return !!val.__initialized
+  }
+  return true
 }

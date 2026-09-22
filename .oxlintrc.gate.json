@@ -11,5 +11,5 @@
     "eslint/no-useless-catch": "error",
     "import/no-cycle": "error"
   },
-  "ignorePatterns": ["*.min.js", "*.d.ts"]
+  "ignorePatterns": ["*.min.js", "*.d.ts", "/packages", "/.claude"]
 }

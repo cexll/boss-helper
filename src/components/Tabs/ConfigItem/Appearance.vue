@@ -4,10 +4,11 @@ import { watch, watchEffect } from 'vue'
 
 import Alert from '@/components/Alert.vue'
 import { useConf, appearanceConf } from '@/composables/conf'
-import { useStatistics } from '@/composables/useStatistics'
+import { useHelper } from '@/composables/useHelper'
 
 const title = useTitle(undefined, { observe: true })
-const { todayData } = useStatistics()
+const helper = useHelper()
+const { todayData } = helper.statistics
 const { formData } = useConf()
 
 watch(
@@ -39,7 +40,7 @@ watch(
       dynamicTitle?.stop()
     } else {
       dynamicTitle = watchEffect(() => {
-        title.value = `${todayData.success}/${formData.deliveryLimit.value} - 在线计算器`
+        title.value = `${todayData.value.success}/${formData.deliveryLimit.value} - 在线计算器`
       })
     }
   },
@@ -50,9 +51,9 @@ let ticking = false
 watch(
   () => appearanceConf.value.blurCard,
   (val) => {
-    const host = document.querySelector('boss-helper-job')?.shadowRoot?.host
-    if (!host) return
-    const card = host.querySelector<HTMLDivElement>('.boss-helper-card')
+    const root = document.querySelector('boss-helper-job')?.shadowRoot
+    if (!root) return
+    const card = root.querySelector<HTMLDivElement>('.boss-helper-card')
     const blur = card?.querySelector<HTMLDivElement>('.card-grid-overlay')
     if (!blur || !card) return
     if (!val) {
@@ -91,8 +92,8 @@ watch(
 </script>
 
 <template>
-  <div class="flex flex-col gap-2">
-    <div class="flex flex-row flex-wrap gap-4" data-help="外观配置">
+  <div class="flex flex-col gap-2" data-help="外观配置, 自行体会">
+    <div class="flex flex-row flex-wrap gap-4">
       <Alert
         id="appearance-alert-1"
         style="margin-bottom: 10px"

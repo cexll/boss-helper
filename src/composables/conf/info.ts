@@ -1,8 +1,8 @@
-import type { FormData, FormInfoData } from '@/types/formData'
+import type { FormData } from '@/types/formData'
 
 // TODO: 移除info, 忘记当初为啥要维护这一坨了, 还是直接写组件里面好看
 
-export const formInfoData: FormInfoData = {
+export const formInfoData: Record<string, any> = {
   configLevel: {
     options: [
       {
@@ -46,15 +46,6 @@ export const formInfoData: FormInfoData = {
     label: '工作地址',
     'data-help': '只能为包含模式, 即投递工作地址当中必须包含当前内容中的任意一项，否则排除',
   },
-  salaryRange: {
-    label: '薪资范围',
-    'data-help': '投递工作的薪资范围, 更多选项可看高级配置',
-  },
-  companySizeRange: {
-    label: '公司规模范围',
-    'data-help':
-      '投递工作的公司规模, 推荐使用boss自带选项进行筛选。严格宽松定义在薪资高级配置中有写',
-  },
   customGreeting: {
     label: '自定义招呼语',
     'data-help':
@@ -77,6 +68,10 @@ export const formInfoData: FormInfoData = {
     label: '好友过滤(已聊)',
     'data-help': '判断和hr是否建立过聊天，理论上能过滤的同hr，但是不同岗位的工作',
   },
+  bossGoldMedalHr: {
+    label: '过滤金牌面试官',
+    'data-help': '通过头像框来判断是否是金牌面试官, 据小红书经验 金牌面试官多数是刷kpi,并不靠谱',
+  },
   sameCompanyFilter: {
     label: '相同公司过滤',
     'data-help': '投递过的公司id存储到浏览器本地，避免多次向同公司投递，即使岗位不同hr不同',
@@ -84,19 +79,6 @@ export const formInfoData: FormInfoData = {
   sameHrFilter: {
     label: '相同Hr过滤',
     'data-help': '投递过的hr存储到浏览器本地，避免多次向同hr投递。',
-  },
-  notification: {
-    label: '发送通知',
-    'data-help': '可以在网站管理中打开通知权限,当停止时会自动发送桌面端通知提醒。',
-  },
-  useCache: {
-    label: '启用缓存',
-    'data-help':
-      '开启后会缓存投递记录，避免重复投递，提高效率。但是缓存功能并不积极维护。可能会有bug，或者意外情况，如遇到可尝试清空缓存或者禁用',
-  },
-  deliveryLimit: {
-    label: '投递数量',
-    'data-help': '达到上限后会自动暂停，默认100次, 当前boss上限为150',
   },
   aiGreeting: {
     label: 'AI招呼语',
@@ -109,30 +91,11 @@ export const formInfoData: FormInfoData = {
   },
   aiReply: {
     label: 'AI回复',
-    'data-help': '万一消息太多，回不过来了呢，也许能和AiHR聊到地球爆炸？魔法击败魔法',
+    'data-help': '万一消息太多，回不过来了呢. 功能暂未实现',
   },
   record: {
     label: '内容记录',
     'data-help': '拿这些数据去训练个Ai岂不是美滋滋咯？',
-  },
-  delay: {
-    deliveryStarts: {
-      label: '投递开始',
-      'data-help': '点击投递按钮会等待一段时间,默认值10s',
-    },
-    deliveryInterval: {
-      label: '投递间隔',
-      'data-help': '每个投递的间隔,太快易风控,默认值2s',
-    },
-    deliveryPageNext: {
-      label: '投递翻页',
-      'data-help': '投递完下一页之后等待的间隔,太快易风控,默认值60s',
-    },
-    messageSending: {
-      label: '消息发送',
-      'data-help': '暂未实现 ,在发送消息前允许等待一定的时间让用户来修改或手动发送,默认值5s',
-      disable: true,
-    },
   },
   amap: {
     enable: {
@@ -234,11 +197,16 @@ export const defaultFormData: FormData = {
   friendStatus: {
     value: true,
   },
+  bossGoldMedalHr: {
+    value: false,
+  },
   sameCompanyFilter: {
     value: false,
+    expire: 0,
   },
   sameHrFilter: {
     value: true,
+    expire: 0,
   },
   goldHunterFilter: {
     value: false,
@@ -343,11 +311,9 @@ export const defaultFormData: FormData = {
   record: {
     enable: false,
   },
-  delay: {
-    deliveryStarts: 3,
-    deliveryInterval: 5,
-    deliveryPageNext: 60,
-    messageSending: 5,
-  },
-  version: '20240401',
+  delayDeliveryStarts: 3,
+  delayDeliveryInterval: 5,
+  delayDeliveryPageNext: 60,
+  delayMessageSending: 2,
+  version: '20260718',
 }

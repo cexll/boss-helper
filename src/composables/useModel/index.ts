@@ -5,7 +5,8 @@ import { logger } from '@/utils/logger'
 
 import type { OpenaiLLMConf } from './openai'
 import { openai } from './openai'
-import './test'
+
+export * from './chatModel'
 
 const toast = useToast()
 export const confModelKey = 'conf-model'
@@ -26,6 +27,7 @@ export interface ModelConf {
   //   }
   // }
 }
+
 const modelData = ref<ModelConf[]>([])
 
 export const useModel = () => {

@@ -1,36 +1,63 @@
 import type { StorageLikeAsync } from '@vueuse/core'
 import { defineProxy } from 'comctx'
 
-import { type ContentCounter } from './contentScript'
-import { ProvideContentAdapter } from './contentScriptShare'
+import type { ContentCounter } from './contentScript'
+import { ProvideContentScriptAdapter } from './contentScriptShare'
 
-// export type * from './background'
-// export type * from './contentScript'
+export const InjectAdapter = ProvideContentScriptAdapter
 
-export const [, injectCounter] = defineProxy(() => ({}) as ContentCounter, {
-  namespace: '__boss-helper-content__',
+let _counter: ContentCounter | null = null
+
+export function initCounter(
+  script: HTMLScriptElement = document.currentScript as HTMLScriptElement,
+) {
+  const [, injectCounter] = defineProxy(() => ({}) as ContentCounter, {
+    namespace: '__boss-helper-content__',
+  })
+  _counter = injectCounter(new InjectAdapter(script))
+}
+
+export const counter = new Proxy({} as ContentCounter, {
+  get(_, key) {
+    if (!_counter) {
+      throw new Error(
+        `Counter has not been initialized. Call initCounter() before using counter.${String(key)}`,
+      )
+    }
+
+    const value = (_counter as any)[key]
+
+    if (typeof value === 'function') {
+      return value.bind(_counter)
+    }
+
+    return value
+  },
+
+  set(_, key, value) {
+    if (!_counter) {
+      throw new Error(
+        `Counter has not been initialized. Call initCounter() before using counter.${String(key)}`,
+      )
+    }
+
+    ;(_counter as any)[key] = value
+    return true
+  },
 })
-
-// export default class InjectAdapter implements Adapter {
-//   sendMessage: SendMessage = (message) => {
-//     window.postMessage(message, '*')
-//   }
-
-//   onMessage: OnMessage = (callback) => {
-//     const handler = (event: MessageEvent<Partial<Message<Record<string, any>>> | undefined>) =>
-//       callback(event.data)
-//     window.addEventListener('message', handler)
-//     return () => window.removeEventListener('message', handler)
-//   }
-// }
-
-export const InjectAdapter = ProvideContentAdapter
-
-export const counter = injectCounter(new InjectAdapter())
 
 export const ExtStorage: StorageLikeAsync = {
   async getItem(key) {
-    return counter.storageGet(key)
+    return new Promise((resolve) => {
+      const t = setInterval(() => {
+        if (_counter) {
+          void counter.storageGet(key).then((value) => {
+            return resolve(value as never)
+          })
+          clearInterval(t)
+        }
+      }, 200)
+    })
   },
   async setItem(key, value) {
     await counter.storageSet(key, value)

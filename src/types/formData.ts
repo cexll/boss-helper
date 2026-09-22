@@ -8,6 +8,7 @@ export interface Statistics {
     [key: string]: { [key: string]: number }
   }
 }
+
 const ConfigLevels = ['beginner', 'intermediate', 'advanced', 'expert'] as const
 export type ConfigLevel = (typeof ConfigLevels)[number]
 
@@ -25,8 +26,9 @@ export interface FormData {
   greetingVariable: FormDataCheckbox
   activityFilter: FormDataCheckbox
   friendStatus: FormDataCheckbox
-  sameCompanyFilter: FormDataCheckbox
-  sameHrFilter: FormDataCheckbox
+  bossGoldMedalHr: FormDataCheckbox
+  sameCompanyFilter: FormDataCheckbox & { expire?: number }
+  sameHrFilter: FormDataCheckbox & { expire?: number }
   goldHunterFilter: FormDataCheckbox
   notification: FormDataCheckbox
   useCache: FormDataCheckbox
@@ -45,29 +47,13 @@ export interface FormData {
   }
   record: { model?: string[]; enable: boolean }
   // animation?: "frame" | "card" | "together";
-  delay: ConfDelay
+  delayDeliveryStarts: number
+  delayDeliveryInterval: number
+  delayDeliveryPageNext: number
+  delayMessageSending: number
   version: string
-}
 
-export type FormInfoData = {
-  [key in keyof Omit<
-    FormData,
-    'configLevel' | 'aiGreeting' | 'aiFiltering' | 'delay' | 'userId' | 'version' | 'amap'
-  >]: {
-    label: string
-    'data-help'?: string
-  }
-} & {
-  configLevel: { options: Array<{ value: ConfigLevel; label: string }>; 'data-help'?: string }
-  aiGreeting: FormInfoAi
-  aiFiltering: FormInfoAi
-  delay: ConfInfoDelay
-  amap: {
-    [key in keyof FormData['amap']]: {
-      label: string
-      'data-help'?: string
-    }
-  }
+  [key: string]: any
 }
 
 export interface FormInfoAi {
@@ -83,7 +69,7 @@ export interface FormDataSelect {
 }
 
 export interface FormDataInput {
-  value: string | CustomGreetingItem[]
+  value: string | Array<CustomGreetingItem>
   enable: boolean
 }
 
@@ -143,18 +129,3 @@ export type CustomGreetingItemImage = {
 }
 
 export type CustomGreetingItem = CustomGreetingItemText | CustomGreetingItemImage
-
-interface ConfDelay {
-  deliveryStarts: number
-  deliveryInterval: number
-  deliveryPageNext: number
-  messageSending: number
-}
-
-type ConfInfoDelay = {
-  [Key in keyof ConfDelay]: {
-    label: string
-    'data-help'?: string
-    disable?: boolean
-  }
-}

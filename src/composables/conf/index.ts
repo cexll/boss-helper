@@ -63,11 +63,11 @@ const FROM_VERSION: [string, (from: Partial<FormData>) => Partial<FormData>][] =
     (from) => {
       if (from.salaryRange && typeof from.salaryRange.value === 'string') {
         const [min, max] = (from.salaryRange.value as string).split('-').map(Number)
-        from.salaryRange.value = [min, max, false]
+        from.salaryRange.value = [min ?? 0, max ?? 0, false]
       }
       if (from.companySizeRange && typeof from.companySizeRange.value === 'string') {
         const [min, max] = (from.companySizeRange.value as string).split('-').map(Number)
-        from.companySizeRange.value = [min, max, false]
+        from.companySizeRange.value = [min ?? 0, max ?? 0, false]
       }
       return from
     },
@@ -116,6 +116,20 @@ const FROM_VERSION: [string, (from: Partial<FormData>) => Partial<FormData>][] =
       return from
     },
   ],
+  [
+    '20260718',
+    (from) => {
+      if (!('delay' in from) || typeof from.delay !== 'object') {
+        return from
+      }
+      Object.entries(from.delay as Record<string, number>).forEach(([key, value]) => {
+        // @ts-ignore
+        from[`delay${key.charAt(0).toUpperCase() + key.slice(1)}`] = value
+      })
+      delete from['delay']
+      return from
+    },
+  ],
 ]
 
 export const useConf = () => {
@@ -124,7 +138,7 @@ export const useConf = () => {
   async function formDataHandler(from: Partial<FormData>) {
     try {
       for (let i = FROM_VERSION.length - 1; i >= 0; i--) {
-        const [version, fn] = FROM_VERSION[i]
+        const [version, fn] = FROM_VERSION[i]!
         if ((from?.version ?? '20240401') >= version) {
           break
         }
@@ -170,17 +184,16 @@ export const useConf = () => {
   }
 
   async function confSaving() {
-    const v = jsonClone(formData)
     try {
-      await counter.storageSet(formDataKey(), v)
-      await counter.storageSet(formDataPresetKey, formDataPreset.value)
-      await counter.storageSet(formDataPresetsKey, formDataPresets.value)
+      await counter.storageSet(formDataKey(), jsonClone(formData))
+      await counter.storageSet(formDataPresetKey, jsonClone(formDataPreset.value))
+      await counter.storageSet(formDataPresetsKey, jsonClone(formDataPresets.value))
 
-      logger.debug('formData保存', v)
       toast.add({
         title: '保存成功',
         color: 'success',
       })
+      logger.debug('formData保存')
     } catch (error: any) {
       toast.add({
         title: `保存失败: ${error.message}`,
@@ -303,7 +316,7 @@ export const useConf = () => {
     isLoading.value = true
     try {
       formDataPreset.value = value
-      counter.storageSet(formDataPresetKey, value)
+      await counter.storageSet(formDataPresetKey, value)
       await init()
     } catch (e) {
       toast.add({

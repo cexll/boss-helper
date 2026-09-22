@@ -37,12 +37,21 @@ const jobStatus = computed(() => {
 })
 
 const showDescription = ref(false)
+const showDescriptionLoading = ref(false)
+const showDescriptionMessage = ref<string | null>(null)
 
 async function showDescriptionHandler() {
   showDescription.value = true
-  // if (props.job.card == null) {
-  //   await props.job.getCard()
-  // }
+  showDescriptionLoading.value = true
+  showDescriptionMessage.value = null
+  try {
+    await helper.onJobCardClick(props.job.key)
+  } catch (e) {
+    console.error('showDescriptionHandler error', e)
+    showDescriptionMessage.value = e instanceof Error ? e.message : String(e)
+  } finally {
+    showDescriptionLoading.value = false
+  }
 }
 
 function getActiveTimeType(job: JobData): 'success' | 'warning' | 'error' {
@@ -82,7 +91,17 @@ function getActiveTimeType(job: JobData): 'success' | 'warning' | 'error' {
       :title="job.jobDescription"
       @click="showDescription = false"
     >
-      {{ job.jobDescription }}
+      <template v-if="showDescriptionLoading">
+        加载中...
+        <USkeleton class="h-4 w-full" />
+        <USkeleton class="h-4 w-4/5" />
+      </template>
+      <template v-else-if="showDescriptionMessage">
+        {{ showDescriptionMessage }}
+      </template>
+      <template v-else>
+        {{ job.jobDescription }}
+      </template>
     </div>
     <div v-show="!showDescription" class="card-content" @click="showDescriptionHandler">
       <div>
@@ -109,7 +128,9 @@ function getActiveTimeType(job: JobData): 'success' | 'warning' | 'error' {
     <div v-if="job.activeTime || job.activeTimeStr" class="active-time-tag">
       <UBadge :color="getActiveTimeType(job)" variant="subtle">
         活跃时间：{{
-          job.activeTime ? new Date(job.activeTime).toLocaleString() : job.activeTimeStr
+          job.activeTime
+            ? `${new Date(job.activeTime).toLocaleString('zh')}${job.activeTimeStr ? ` (${job.activeTimeStr})` : ''}`
+            : job.activeTimeStr
         }}
       </UBadge>
     </div>

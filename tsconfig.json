@@ -1,9 +1,11 @@
 {
   "extends": "./.wxt/tsconfig.json",
+  "exclude": ["node_modules", ".output", ".run", "packages/devlog-ui/src/__tests__"],
   "compilerOptions": {
     "jsx": "preserve",
     "jsxImportSource": "vue",
     "allowArbitraryExtensions": true,
+    "verbatimModuleSyntax": true,
     "paths": {
       "@": ["./src"],
       "@/*": ["./src/*"],
@@ -14,7 +16,8 @@
       "~~": ["."],
       "~~/*": ["./*"],
       "#build/ui": ["./node_modules/.nuxt-ui/ui"],
-      "#build/ui/*": ["./node_modules/.nuxt-ui/ui/*"]
+      "#build/ui/*": ["./node_modules/.nuxt-ui/ui/*"],
+      "devlog-ui": ["./packages/devlog-ui/src"]
     }
   }
 }

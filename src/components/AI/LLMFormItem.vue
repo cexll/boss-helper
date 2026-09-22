@@ -46,7 +46,7 @@ const isSetVal = ref(fromVal.value !== undefined)
   <UFormField
     v-else
     :required="info.required"
-    class="form-field-container"
+    class="w-full"
     :ui="{ container: 'flex flex-row gap-2 flex-1 *:w-full max-w-3/5' }"
   >
     <template #label>
@@ -103,15 +103,3 @@ const isSetVal = ref(fromVal.value !== undefined)
     </template>
   </UFormField>
 </template>
-
-<style scoped>
-.form-field-container {
-  transition: all 0.2s ease;
-}
-
-.form-field-container :deep(.ui-form-field) {
-  display: flex;
-  flex-direction: column;
-  gap: 0.5rem;
-}
-</style>

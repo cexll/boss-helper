@@ -3,7 +3,7 @@ import { ref } from 'vue'
 
 import LLMModelManage from '@/components/AI/LLMModelManage.vue'
 import LLMPromptEdit from '@/components/AI/LLMPromptEdit.vue'
-import FormSwitch from '@/components/Form/FormSwitch.vue'
+import FormSwitch from '@/components/Tabs/ConfigItem/Form/FormSwitch.vue'
 import { formInfoData, useConf } from '@/composables/conf'
 import { useHelper } from '@/composables/useHelper'
 import type { FormDataAi } from '@/types/formData'

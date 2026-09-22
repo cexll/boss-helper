@@ -4,11 +4,10 @@ import { computed, onMounted, ref } from 'vue'
 import Alert from '@/components/Alert.vue'
 import { useConf } from '@/composables/conf'
 import { useHelper } from '@/composables/useHelper'
-import { useStatistics } from '@/composables/useStatistics'
 
-const ctx = useHelper()
+const helper = useHelper()
 
-const statistics = useStatistics()
+const { todayData, statisticsData } = helper.statistics
 
 // const { next, page } = usePager()
 const conf = useConf()
@@ -38,25 +37,22 @@ const statisticCycleData = [
 ]
 
 const cycle = computed(() => {
-  const date = statisticCycleData[statisticCycle.value].date
+  const date = statisticCycleData[statisticCycle.value]?.date
   let ans = 0
+  if (!date) return ans
   for (
     let i = 0;
     // eslint-disable-next-line no-unmodified-loop-condition
-    (date === -1 || i < date - 1) && i < statistics.statisticsData.value.length;
+    (date === -1 || i < date - 1) && i < statisticsData.value.length;
     i++
   ) {
-    ans += statistics.statisticsData.value[i].success
+    ans += statisticsData.value[i]?.success ?? 0
   }
   return ans
 })
 
-const deliveryLimit = computed(() => {
-  return conf.formData.deliveryLimit.value
-})
-
 onMounted(() => {
-  statistics.updateStatistics()
+  void helper.statistics.updateStatistics()
 })
 </script>
 
@@ -72,44 +68,31 @@ onMounted(() => {
       <div data-help="统计当天脚本扫描过的所有岗位">
         <div class="text-sm text-gray-500">岗位总数：</div>
         <div class="text-2xl font-semibold">
-          {{ statistics.todayData.total }} <span class="text-sm text-gray-400">份</span>
+          {{ todayData.total }} <span class="text-sm text-gray-400">份</span>
         </div>
       </div>
       <div data-help="统计当天岗位过滤的比例,被过滤/总数">
         <div class="text-sm text-gray-500">过滤比例：</div>
         <div class="text-2xl font-semibold">
-          {{
-            (
-              ((statistics.todayData.total - statistics.todayData.success) /
-                statistics.todayData.total) *
-              deliveryLimit
-            ).toFixed(1)
-          }}
+          {{ (((todayData.total - todayData.success) / todayData.total) * 100).toFixed(0) }}
           <span class="text-sm text-gray-400">%</span>
         </div>
       </div>
       <div data-help="统计当天刷到了多少处理过的岗位,重复/总数">
         <div class="text-sm text-gray-500">重复比例：</div>
         <div class="text-2xl font-semibold">
-          {{
-            ((statistics.todayData.repeat / statistics.todayData.total) * deliveryLimit).toFixed(1)
-          }}
+          {{ ((todayData.repeat / todayData.total) * 100).toFixed(0) }}
           <span class="text-sm text-gray-400">%</span>
         </div>
       </div>
       <div data-help="统计当天岗位中的活跃情况,不活跃/总数">
         <div class="text-sm text-gray-500">活跃比例：</div>
         <div class="text-2xl font-semibold">
-          {{
-            (
-              (statistics.todayData.activityFilter / statistics.todayData.total) *
-              deliveryLimit
-            ).toFixed(1)
-          }}
+          {{ ((todayData.activityFilter / todayData.total) * 100).toFixed(0) }}
           <span class="text-sm text-gray-400">%</span>
         </div>
       </div>
-      <div :data-help="statisticCycleData[statisticCycle].help">
+      <div :data-help="statisticCycleData[statisticCycle]?.help">
         <UDropdownMenu
           :items="
             statisticCycleData.map((item, index) => ({
@@ -119,7 +102,7 @@ onMounted(() => {
           "
         >
           <div class="text-sm text-gray-500 cursor-pointer flex items-center gap-1">
-            {{ statisticCycleData[statisticCycle].label }}:
+            {{ statisticCycleData[statisticCycle]?.label }}:
             <svg xmlns="http://www.w3.org/2000/svg" class="w-4 h-4" viewBox="0 0 1024 1024">
               <path
                 fill="currentColor"
@@ -129,7 +112,8 @@ onMounted(() => {
           </div>
         </UDropdownMenu>
         <div class="text-2xl font-semibold">
-          {{ cycle + statistics.todayData.success }} <span class="text-sm text-gray-400">份</span>
+          {{ cycle + todayData.success }}
+          <span class="text-sm text-gray-400">份</span>
         </div>
       </div>
     </div>
@@ -138,24 +122,24 @@ onMounted(() => {
         <UButton
           color="primary"
           data-help="点击开始就会开始投递"
-          :loading="ctx.workflow?.status.value === 'running'"
-          @click="ctx.start()"
+          :loading="helper.workflow?.status.value === 'running'"
+          @click="helper.start()"
         >
-          {{ ctx.workflow?.status.value === 'stop' ? '继续' : '开始' }}
+          {{ helper.workflow?.status.value === 'stop' ? '继续' : '开始' }}
         </UButton>
         <UButton
-          v-if="ctx.workflow?.status.value === 'stop'"
+          v-if="helper.workflow?.status.value === 'stop'"
           color="warning"
           data-help="重置已被筛选的岗位，开始将重新处理"
-          @click="ctx.reset()"
+          @click="helper.reset()"
         >
           重置筛选
         </UButton>
         <UButton
-          v-if="ctx.workflow?.status.value === 'running'"
+          v-if="helper.workflow?.status.value === 'running'"
           color="warning"
           data-help="暂停后应该能继续"
-          @click="ctx.stop()"
+          @click="helper.stop()"
         >
           暂停
         </UButton>
@@ -163,7 +147,7 @@ onMounted(() => {
       <UProgress
         data-help="我会统计当天脚本投递的数量,该记录并不准确"
         class="flex-1"
-        :value="Number(((statistics.todayData.success / deliveryLimit) * 100).toFixed(1))"
+        :model-value="(todayData.success / conf.formData.deliveryLimit.value) * 100"
       />
     </div>
   </div>

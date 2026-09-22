@@ -9,14 +9,14 @@
 One logic, one implementation. Versions evolve in git history, never in filenames or identifiers.
 
 - Before adding a function/module/file, search for the existing implementation; extend it or justify the new one in the PR.
-- Forbidden suffixes: `_v1/_v2/_new/_old/_backup/_temp/_copy/_final/_real/_improved/_refactored/_fixed/_legacy/_deprecated`. Near-miss debt (`Jobcard.vue` file vs `JobCard.vue` imports): unify, never extend.
+- Forbidden suffixes: `_v1/_v2/_new/_old/_backup/_temp/_copy/_final/_real/_improved/_refactored/_fixed/_legacy/_deprecated`. Vue filenames and imports must agree in case.
 - Refactor in place; no parallel old/new files "just in case" — git is the safety net.
 - Commented-out code is debt: delete it (pre-existing blocks in `handles.ts`/`content.ts` are in Notes — don't grow the habit). Dead exports: wire or delete (knip ratchets). No scratchpad dirs in commits.
 - Baselines move down only: `.baseline/findings.json` ceilings may not rise; a diff adding a violation removes one elsewhere.
 
 ## Project Identity
 
-Boss直聘助手, 皆在减少投递简历的麻烦, 和提高投递简历的效率 — a zhipin.com browser extension (Chrome/Edge MV3, Firefox MV2): batch delivery, filters (incl. AI), greetings, chat.
+Boss直聘助手, 皆在减少投递简历的麻烦, 和提高投递简历的效率 — a zhipin.com browser extension (Chrome/Edge/Firefox MV3): batch delivery, filters (incl. AI), greetings, chat.
 
 - **Consumers**: job seekers via the three stores; public GitHub PRs. **Lifecycle**: years, maintained product. **Team**: solo + OSS.
 - **Strictness profile**: 一般配置 (general), chosen explicitly at init; thresholds derive from `constraints.yaml` — never relax gates ad hoc.
@@ -24,7 +24,7 @@ Boss直聘助手, 皆在减少投递简历的麻烦, 和提高投递简历的效
 
 ## Stack & Versions
 
-TypeScript ^6 strict · WXT ^0.20 · Vue ^3.5 + Nuxt UI 4 + Tailwind 4 (shadow-DOM) · protobuf wire (`src/assets/chat.proto`) + MQTT · browser storage, no server DB · bun test 1.4 (lcov) · oxlint `--type-aware` + vue-tsc · oxfmt.
+TypeScript 6 compatibility alias (vue-tsc requires JS compiler API) · WXT ^0.21 · Vue ^3.5 + Nuxt UI 4 + Tailwind 4 · protobuf/MQTT · browser storage · bun test 1.4 · oxlint + vue-tsc · oxfmt.
 `bun.lock` committed; `bun run setup` after pulling; never hand-edit or bypass. Renovate, 3-day min release age; majors need approval. New deps need PR justification; no `@latest`.
 
 ## Directory Map
@@ -32,7 +32,7 @@ TypeScript ^6 strict · WXT ^0.20 · Vue ^3.5 + Nuxt UI 4 + Tailwind 4 (shadow-D
 ```
 src/entrypoints/  WXT entries: content, background, boss/ (UI, requests, chat wire), options/
 src/composables/  useApplying/ (pipeline), useHelper/, conf/ (config), useModel/ (LLM)
-src/components/   Vue UI (Tabs, form, AI, Menu)    src/message/  content↔background protocol
+src/components/   Vue UI (Tabs/ConfigItem/Form, AI, Menu)    src/message/  content↔background protocol
 src/utils/        request, logger, elmGetter, ai   src/types/    formData, pipelineCache
 scripts/          harness gates       .github/workflows/  ci, main (store), harness-maintenance
 ```
@@ -44,6 +44,7 @@ Where new behavior goes: pipeline step → `defineTaskHandler` in `useApplying/h
 ## Development Workflow
 
 ```bash
+git submodule update --init --recursive # pinned packages/devlog-ui workspace
 bun run setup            # install + wxt prepare      bun run hooks:install  # core.hooksPath, once per clone
 bun run dev              # WXT dev chromium (:edge :firefox)
 bun run check:fast       # changed-file checks        bun run check:all     # merge-gating gates
@@ -78,12 +79,12 @@ Temporary: remove when the baseline table reads zeros and `bun run check` is gre
 
 Dated, max 10, pruned at milestones.
 
-1. 2026-09-21 — `check` red at HEAD: `@/components/Form/*` imports vs real `form/` dir, `JobCard.vue` vs `Jobcard.vue` — TS1261 (breaks case-sensitive CI). Fix import paths (work units); never hand-edit `components.d.ts`.
+1. 2026-09-22 — Upstream fixes component casing and moves forms into `Tabs/ConfigItem/Form/`; regenerate `components.d.ts`, never hand-edit it.
 2. 2026-09-21 — `bun:test` types missing for vue-tsc; fix with `bun add -d @types/bun`; don't exclude tests from tsconfig.
-3. 2026-09-21 — bug: `handles.ts:405` — `customGreeting.value: string | CustomGreetingItem[]` into `renderTemplate(string)`. Narrow the union; no casts.
+3. 2026-09-22 — Upstream fixes custom greeting text/image handling; preserve it alongside local abort-policy protection.
 4. 2026-09-21 — `wxt.config.ts` carries the published `key`/store identity; changing it bricks installed-user updates. Human gate.
 5. 2026-09-21 — `host_permissions` already maximal; further change = store-review + account risk, justify in PR.
-6. 2026-09-21 — release workflow once invoked nonexistent `pnpm run build:noTsc` (phantom, repaired at init). Publishing stays manual-dispatch until a tag policy exists.
+6. 2026-09-22 — Release workflow packages browser ZIPs on manual dispatch/tags; tag runs publish the upstream `latest` prerelease. Publishing requires human authorization.
 7. 2026-09-21 — zhipin is adversarial: pacing/delay/limit in `useApplying` are ban-risk safety (README CAUTION). Do not remove.
 
 ## Conventions
@@ -132,19 +133,19 @@ Human white-box review of every diff line; elsewhere gray-box (contracts + runti
 
 Strictness profile **一般配置 (general)**. Levels: `advice` < `review-only` < `warn` < `block` < `gate`.
 
-| Rule / Convention                                                                                                                | Where                                                                              | Checked by                                                                   | Level       |
-| -------------------------------------------------------------------------------------------------------------------------------- | ---------------------------------------------------------------------------------- | ---------------------------------------------------------------------------- | ----------- |
-| Naming + scratchpad                                                                                                              | `constraints.yaml` → `.git-hooks/check-naming.sh`                                  | pre-commit; self-proven `.git-hooks/test-naming.sh`                          | block       |
-| Staged autofix + commit format                                                                                                   | `.git-hooks/pre-commit`, `.git-hooks/commit-msg`, lint-staged                      | pre-commit; `bun run test:guardrails`                                        | block       |
-| Size/complexity/cycles/console/empty-catch lint, format, typecheck, duplicates, dead code — legacy frozen, **new/changed never** | `.oxlintrc.gate.json`, `.oxfmtrc.json`, `tsconfig.json`, `jscpd.json`, `knip.json` | `npm run check:baseline` ratchet + CI                                        | block       |
-| Loose lint (advisory)                                                                                                            | `.oxlintrc.json`                                                                   | `bun run lint` + CI                                                          | warn        |
-| Coverage per changed .ts; CRAP ceiling 15.76                                                                                     | `constraints.yaml` (testing, size_limits)                                          | `npm run check:coverage` + `npm run check:crap`; proofs `bun run test:gates` | block       |
-| PR diff size (400); secret scan; lockfile drift                                                                                  | `constraints.yaml`; gitleaks; `scripts/check-lockfile-consistency.mjs`             | CI layer6; layer5; drift job                                                 | block       |
-| Built-artifact manifest                                                                                                          | `wxt.config.ts`                                                                    | `npm run build:smoke` + CI                                                   | block       |
-| Aggregated merge verdict (authority: `constraints.yaml`)                                                                         | `.github/workflows/ci.yml`                                                         | CI all-checks-passed aggregator + branch protection                          | block       |
-| Branch protection                                                                                                                | GitHub settings — `gh api -X PUT repos/Ocyss/boss-helper/branches/main/protection` | server-side                                                                  | gate        |
-| CODEOWNERS review; dep min-age                                                                                                   | `.github/CODEOWNERS`; `renovate.json`                                              | routing until owner-review; Renovate App                                     | review-only |
-| TDD red-first · white-box critical paths                                                                                         | this file                                                                          | PR review                                                                    | review-only |
+| Rule / Convention                                                                                                                | Where                                                                                | Checked by                                                                   | Level       |
+| -------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------ | ---------------------------------------------------------------------------- | ----------- |
+| Naming + scratchpad                                                                                                              | `constraints.yaml` → `.git-hooks/check-naming.sh`                                    | pre-commit; self-proven `.git-hooks/test-naming.sh`                          | block       |
+| Staged autofix + commit format                                                                                                   | `.git-hooks/pre-commit`, `.git-hooks/commit-msg`, lint-staged                        | pre-commit; `bun run test:guardrails`                                        | block       |
+| Size/complexity/cycles/console/empty-catch lint, format, typecheck, duplicates, dead code — legacy frozen, **new/changed never** | `.oxlintrc.gate.json`, `oxfmt.config.ts`, `tsconfig.json`, `jscpd.json`, `knip.json` | `npm run check:baseline` ratchet + CI                                        | block       |
+| Loose lint (advisory)                                                                                                            | `oxlint.config.ts`                                                                   | `bun run lint` + CI                                                          | warn        |
+| Coverage per changed .ts; CRAP ceiling 15.76                                                                                     | `constraints.yaml` (testing, size_limits)                                            | `npm run check:coverage` + `npm run check:crap`; proofs `bun run test:gates` | block       |
+| PR diff size (400); secret scan; lockfile drift                                                                                  | `constraints.yaml`; gitleaks; `scripts/check-lockfile-consistency.mjs`               | CI layer6; layer5; drift job                                                 | block       |
+| Built-artifact manifest                                                                                                          | `wxt.config.ts`                                                                      | `npm run build:smoke` + CI                                                   | block       |
+| Aggregated merge verdict (authority: `constraints.yaml`)                                                                         | `.github/workflows/ci.yml`                                                           | CI all-checks-passed aggregator + branch protection                          | block       |
+| Branch protection                                                                                                                | GitHub settings — `gh api -X PUT repos/Ocyss/boss-helper/branches/main/protection`   | server-side                                                                  | gate        |
+| CODEOWNERS review; dep min-age                                                                                                   | `.github/CODEOWNERS`; `renovate.json`                                                | routing until owner-review; Renovate App                                     | review-only |
+| TDD red-first · white-box critical paths                                                                                         | this file                                                                            | PR review                                                                    | review-only |
 
 ### Known blind spots (handed to review)
 

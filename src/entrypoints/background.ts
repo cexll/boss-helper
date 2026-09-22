@@ -1,8 +1,14 @@
+import { defineProxy } from 'comctx'
+
 import { defineBackground } from '#imports'
-import { ProvideBackgroundAdapter, provideBackgroundCounter } from '@/message/background'
+import { BackgroundCounter, ProvideBackgroundAdapter } from '@/message/background'
 
 export default defineBackground({
   main() {
+    const [provideBackgroundCounter] = defineProxy(() => new BackgroundCounter(), {
+      namespace: '__boss-helper-background__',
+    })
+
     provideBackgroundCounter(new ProvideBackgroundAdapter())
   },
 })

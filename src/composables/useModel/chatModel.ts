@@ -1,24 +1,23 @@
-import { createOpenAI, OpenAIProvider } from '@ai-sdk/openai'
-import { ChatMessageProps } from '@nuxt/ui'
+import type { OpenAIProvider } from '@ai-sdk/openai'
+import { createOpenAI } from '@ai-sdk/openai'
+import type { ChatMessageProps } from '@nuxt/ui'
+import type { ChatState, ChatStatus, ModelMessage, UIMessage } from 'ai'
 import {
-  ChatState,
-  ChatStatus,
-  ModelMessage,
+  APICallError,
   Output,
   ToolLoopAgent,
-  UIMessage,
   createIdGenerator,
   isReasoningUIPart,
   isTextUIPart,
 } from 'ai'
-import { ShallowReactive } from 'vue'
+import type { ShallowReactive } from 'vue'
 
-import { FormDataAi } from '@/types/formData'
+import type { FormDataAi } from '@/types/formData'
 import { renderTemplate } from '@/utils/ai'
 
-import { ModelConf } from '.'
-import { WorkflowData } from '../useApplying/type'
-import { HelperContext } from '../useHelper'
+import type { ModelConf } from '.'
+import type { WorkflowData } from '../useApplying/type'
+import type { HelperContext } from '../useHelper'
 
 const role = ['system', 'user', 'assistant', 'boss', 'jd', 'filtering', 'greetings'] as const
 type MessageRole = (typeof role)[number]
@@ -131,13 +130,17 @@ export class ChatModel {
     return true
   }
 
-  async chat(agentName: MessageRole, data: WorkflowData<any, any>) {
+  async chat(
+    agentName: MessageRole,
+    data: WorkflowData<any, any>,
+    { disableMessages = false }: { disableMessages?: boolean } = {},
+  ) {
     const _agent = this.agents.get(agentName)
     if (!_agent) {
       throw new Error(`Agent ${agentName} not found`)
     }
 
-    if (this.jobs.value.findIndex((j) => j === data.jobData.key) === -1) {
+    if (this.jobs.value.findIndex((j) => j === data.jobData.key) === -1 && !disableMessages) {
       this.jobs.value.unshift(data.jobData.key)
     }
 
@@ -149,15 +152,16 @@ export class ChatModel {
     if (typeof model.prompt === 'string') {
       messages = [{ role: 'user', content: model.prompt }]
     } else {
-      messages = model.prompt
+      messages = jsonClone(model.prompt)
     }
-    for (const i in messages) {
-      if (typeof messages[i].content === 'string') {
-        messages[i].content = renderTemplate(messages[i].content, data)
+    for (const msg of messages) {
+      if (typeof msg.content === 'string') {
+        msg.content = renderTemplate(msg.content, data)
       }
     }
+    let state: VueChatState<Message>
     if (!this.states.has(data.jobData.key)) {
-      const state = new VueChatState<Message>()
+      state = new VueChatState<Message>()
       state.pushMessage({
         id: this.generateId[agentName](),
         uiRole: 'jd',
@@ -179,13 +183,16 @@ ${data.jobData.jobDescription}`,
           alt: data.jobData.brand.name ?? data.jobData.boss.name,
         },
       })
-      // @ts-ignore
-      this.states.set(data.jobData.key, state)
+      if (!disableMessages) {
+        this.states.set(data.jobData.key, state)
+      }
+    } else {
+      state = this.states.get(data.jobData.key)!
+      if (!state) {
+        throw new Error('消息列表未找到')
+      }
     }
-    const state = this.states.get(data.jobData.key)
-    if (!state) {
-      throw new Error('消息列表未找到')
-    }
+
     // msgs.pushMessage({
     //   id: this.generateId[agentName](),
     //   side: 'right',
@@ -224,7 +231,13 @@ ${data.jobData.jobDescription}`,
     const stream = await agent.stream({
       timeout,
       messages,
-      onStepFinish: (message) => {
+      onStart: (m) => {
+        logger.debug('Chat start', m, stream)
+      },
+      onStepStart: (m) => {
+        logger.debug('Chat onStepStart', m)
+      },
+      onStepEnd: (message) => {
         if (index > 0) {
           state.replaceMessage(index, {
             ...msg,
@@ -237,6 +250,9 @@ ${data.jobData.jobDescription}`,
         }
         state.status = 'ready'
       },
+      onEnd: (m) => {
+        logger.debug('Chat ended', m)
+      },
     })
 
     state.pushMessage(msg)
@@ -246,8 +262,15 @@ ${data.jobData.jobDescription}`,
       for await (const chunk of stream.toUIMessageStream({
         originalMessages: state.messages,
         sendReasoning: true,
-        onFinish: (message) => {
-          logger.debug('Chat finished', message)
+        onError: (err) => {
+          if (err instanceof Error) {
+            if (APICallError.isInstance(err)) {
+              return `请求错误 ${err.statusCode}: ${err.message}`
+            }
+            return err.message
+          }
+          logger.error('Unknown error during chat streaming', err)
+          return `Unknown error: ${err instanceof Error ? err.message : String(err)}`
         },
       })) {
         let part: (typeof msg.parts)[number] | null = null
@@ -261,7 +284,7 @@ ${data.jobData.jobDescription}`,
             }
             break
           case 'reasoning-end':
-            if (isReasoningUIPart(lastPart)) {
+            if (lastPart && isReasoningUIPart(lastPart)) {
               lastPart.state = 'done'
             }
             break
@@ -273,10 +296,20 @@ ${data.jobData.jobDescription}`,
             }
             break
           case 'text-end':
-            if (isTextUIPart(lastPart)) {
+            if (lastPart && isTextUIPart(lastPart)) {
               lastPart.state = 'done'
             }
             break
+          case 'error': {
+            state.status = 'error'
+            state.error = new Error(chunk.errorText)
+            break
+          }
+
+          case 'abort': {
+            logger.error('Chat abort', chunk.reason)
+            break
+          }
         }
         if (part) {
           msg.parts.push(part)
@@ -289,6 +322,10 @@ ${data.jobData.jobDescription}`,
       state.status = 'error'
       state.error = e as Error
       logger.error('Error during chat streaming', e)
+    }
+
+    if (state.error) {
+      throw state.error
     }
 
     // for await (const chunk of readUIMessageStream({ // BUG: 无法正确处理消息
