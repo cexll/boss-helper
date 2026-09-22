@@ -1,0 +1,15 @@
+{
+  "$schema": "./node_modules/oxlint/configuration_schema.json",
+  "plugins": ["import", "vue", "jsx-a11y", "oxc", "typescript", "unicorn"],
+  "rules": {
+    "eslint/no-unused-expressions": ["error", { "allowShortCircuit": true }],
+    "eslint/complexity": ["error", 15],
+    "eslint/max-lines": ["error", { "max": 800 }],
+    "eslint/max-lines-per-function": ["error", { "max": 200 }],
+    "eslint/no-console": "error",
+    "eslint/no-empty": ["error", { "allowEmptyCatch": false }],
+    "eslint/no-useless-catch": "error",
+    "import/no-cycle": "error"
+  },
+  "ignorePatterns": ["*.min.js", "*.d.ts"]
+}

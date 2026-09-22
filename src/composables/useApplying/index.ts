@@ -4,6 +4,8 @@ import { PipelineCacheManager } from '@/composables/usePipelineCache'
 import type { PipelineCacheItem, ProcessorType } from '@/types/pipelineCache'
 
 import { HelperContext } from '../useHelper'
+import { decideDeliveryLimitAbort, decideTaskErrorAbort } from './abortPolicy'
+import type { WorkflowAbortDecision } from './abortPolicy'
 import { DependencyMissingError } from './handles'
 import {
   Handler,
@@ -227,10 +229,11 @@ export async function useDeliveryWorkflow<C extends HelperContext<C, T, S>, T, S
     return res
   }
 
-  const execute = async (data: WorkflowData<T, S>) => {
+  const execute = async (data: WorkflowData<T, S>): Promise<WorkflowAbortDecision | undefined> => {
     const isStop = () => status.value === 'stop'
     try {
       let skipPipeline = false
+      let abortDecision: WorkflowAbortDecision | undefined
       for (const t of pipeline.value) {
         let res: void | TaskResult = undefined
         try {
@@ -258,6 +261,10 @@ export async function useDeliveryWorkflow<C extends HelperContext<C, T, S>, T, S
           }
           logger.error(`任务${t.label ?? t.id}执行失败`, e)
           skipPipeline = true
+          const decision = decideTaskErrorAbort(e)
+          if (decision.abort) {
+            abortDecision = decision
+          }
           break
         } finally {
           if (res != null) {
@@ -278,7 +285,12 @@ export async function useDeliveryWorkflow<C extends HelperContext<C, T, S>, T, S
           status: 'success',
           msg: '投递成功',
         })
+        helper.statistics.todayData.success += 1
+        helper.statistics.todayData.total += 1
+      } else {
+        helper.statistics.todayData.total += 1
       }
+      return abortDecision
     } catch (e) {
       status.value = 'error'
       throw e
@@ -317,8 +329,19 @@ export async function useDeliveryWorkflow<C extends HelperContext<C, T, S>, T, S
         for (const [index, jobData] of helper.jobList.value.entries()) {
           current.value = index + 1
           if (isStop()) break
-          const status = helper.jobResultMaps.get(jobData.key)?.status
-          if (status === 'success' || status === 'warn') {
+
+          const limitDecision = decideDeliveryLimitAbort(
+            helper.statistics.todayData.success,
+            helper.conf.formData.deliveryLimit.value,
+          )
+          if (limitDecision.abort) {
+            status.value = limitDecision.status
+            stepMsg = limitDecision.reason
+            break
+          }
+
+          const jobStatus = helper.jobResultMaps.get(jobData.key)?.status
+          if (jobStatus === 'success' || jobStatus === 'warn') {
             continue
           }
           const data = {
@@ -328,7 +351,23 @@ export async function useDeliveryWorkflow<C extends HelperContext<C, T, S>, T, S
           }
           helper.jobMaps.set(jobData.key, data)
           helper.currentJob.value = jobData.key
-          await execute(data)
+          const abortDecision = await execute(data)
+          if (abortDecision?.abort) {
+            status.value = abortDecision.status
+            stepMsg = abortDecision.reason
+            break
+          }
+
+          const afterSuccessLimit = decideDeliveryLimitAbort(
+            helper.statistics.todayData.success,
+            helper.conf.formData.deliveryLimit.value,
+          )
+          if (afterSuccessLimit.abort) {
+            status.value = afterSuccessLimit.status
+            stepMsg = afterSuccessLimit.reason
+            break
+          }
+
           await delay(helper.conf.formData.delay.deliveryInterval, isStop)
         }
         if (isStop()) break
@@ -350,6 +389,8 @@ export async function useDeliveryWorkflow<C extends HelperContext<C, T, S>, T, S
         status.value = 'pending'
       } else if (status.value !== 'stop') {
         status.value = 'error'
+        errorMessage.value = stepMsg
+      } else {
         errorMessage.value = stepMsg
       }
       helper.notification(stepMsg)

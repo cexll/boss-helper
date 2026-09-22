@@ -1,0 +1,179 @@
+name: CI
+
+on:
+  pull_request:
+  push:
+    branches: [main]
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: ${{ github.ref != 'refs/heads/main' }}
+
+permissions:
+  contents: read
+
+jobs:
+  layer1-fast-checks:
+    name: Fast checks (fmt + gate lint + typecheck)
+    runs-on: ubuntu-latest
+    timeout-minutes: 8
+    steps:
+      - uses: actions/checkout@v4
+      - uses: oven-sh/setup-bun@v2
+        with:
+          bun-version: 1.4.0
+      - run: bun install --frozen-lockfile
+      # Raw lanes carry frozen legacy debt (see .baseline/findings.json); CI blocks
+      # on NEW findings through the ratchet (layer4) and keeps the raw output visible here.
+      - name: fmt:check (raw; ratcheted in layer4)
+        run: bun run fmt:check
+        continue-on-error: true
+      - name: gate lint (raw; ratcheted in layer4)
+        run: bun run lint:strict
+        continue-on-error: true
+      - name: typecheck (raw; ratcheted in layer4)
+        run: bun run check
+        continue-on-error: true
+      - name: loose lint
+        run: bun run lint
+
+  layer2-unit-tests:
+    name: Unit tests + coverage gate
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+      - uses: oven-sh/setup-bun@v2
+        with:
+          bun-version: 1.4.0
+      - run: bun install --frozen-lockfile
+      - run: bun run test
+      - name: Coverage gate (85%/file, changed scope)
+        run: |
+          bun run test:coverage
+          bun run check:coverage
+
+  layer4-anti-drift:
+    name: 'Anti-drift ratchet (lint, size, type, fmt, dead, duplicate)'
+    runs-on: ubuntu-latest
+    timeout-minutes: 12
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - uses: oven-sh/setup-bun@v2
+        with:
+          bun-version: 1.4.0
+      - run: bun install --frozen-lockfile
+      - name: Baseline ratchet (fails on any NEW finding or count increase)
+        run: bun run check:baseline
+      - name: Change-risk CRAP gate (diff-scoped)
+        run: bun run check:crap
+        env:
+          CRAP_BASE: ${{ github.event.pull_request.base.sha }}
+
+  layer5-secret-scan:
+    name: Secret scan
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - uses: gitleaks/gitleaks-action@v2
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+  layer3-build:
+    name: Build all browsers
+    needs: layer1-fast-checks
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+      - uses: oven-sh/setup-bun@v2
+        with:
+          bun-version: 1.4.0
+      - run: bun install --frozen-lockfile
+      - run: bun run build
+      - name: Built-artifact smoke
+        run: bun run build:smoke
+      - uses: actions/upload-artifact@v4
+        if: success()
+        with:
+          name: extension-builds
+          path: .output/*-mv*/
+
+  lockfile-consistency:
+    name: Lockfile–manifest consistency
+    runs-on: ubuntu-latest
+    if: github.event_name == 'pull_request'
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - uses: oven-sh/setup-bun@v2
+        with:
+          bun-version: 1.4.0
+      - name: Check lockfile–manifest pairs
+        if: "!contains(github.event.pull_request.labels.*.name, 'lockfile-refresh')"
+        run: node scripts/check-lockfile-consistency.mjs "${{ github.event.pull_request.base.sha }}"
+
+  # Included in the aggregator: PR diffs (unlike layer6, this event scope also covers push).
+  layer6-diff-size-guard:
+    name: PR diff size guard
+    if: github.event_name == 'pull_request'
+    runs-on: ubuntu-latest
+    timeout-minutes: 3
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - name: Enforce max PR diff lines
+        if: ${{ !contains(github.event.pull_request.labels.*.name, 'diff-limit-exempt') }}
+        env:
+          BASE_SHA: ${{ github.event.pull_request.base.sha }}
+        run: |
+          MAX_DIFF_LINES=$(python3 - <<'PY'
+          import pathlib, re
+          text = pathlib.Path("constraints.yaml").read_text()
+          match = re.search(r"(?ms)^  max_pr_diff_lines:\n    value: (\d+)\n", text)
+          if not match:
+              raise SystemExit("Could not read size_limits.max_pr_diff_lines from constraints.yaml")
+          print(match.group(1))
+          PY
+          )
+          LINES=$(git diff --diff-filter=ACMR --ignore-all-space "$BASE_SHA"...HEAD -- . \
+            ':(exclude)*.lock' ':(exclude)**/package-lock.json' ':(exclude)**/pnpm-lock.yaml' \
+            ':(exclude)**/__snapshots__/**' | grep -c '^[+-][^+-]' || true)
+          echo "Changed lines (excluding lockfiles/snapshots): $LINES (limit: $MAX_DIFF_LINES)"
+          if [ "$LINES" -gt "$MAX_DIFF_LINES" ]; then
+            echo "::error::PR exceeds the ${MAX_DIFF_LINES}-line diff limit. Split it, or add the 'diff-limit-exempt' label with a justification in the PR description."
+            exit 1
+          fi
+
+  # Branch protection points ONLY here. GitHub counts a skipped required check as
+  # passing, so `if: always()` + skipped-as-failure is load-bearing.
+  all-checks-passed:
+    name: All checks passed
+    if: always()
+    needs:
+      - layer1-fast-checks
+      - layer2-unit-tests
+      - layer4-anti-drift
+      - layer5-secret-scan
+      - layer3-build
+      - lockfile-consistency
+    runs-on: ubuntu-latest
+    timeout-minutes: 2
+    steps:
+      - name: Fail on any failed, cancelled, or skipped required job
+        env:
+          NEEDS: ${{ toJSON(needs) }}
+        run: |
+          echo "$NEEDS"
+          if echo "$NEEDS" | grep -Eq '"result": "(failure|cancelled|skipped)"'; then
+            echo "::error::A required job failed, was cancelled, or was skipped. Skipped counts as failure here because GitHub counts a skipped required check as passing."
+            exit 1
+          fi

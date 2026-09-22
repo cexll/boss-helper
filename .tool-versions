@@ -1,0 +1,3 @@
+# .tool-versions — single toolchain pin for humans, agents, and CI (mise/asdf).
+# Keep identical to .github/workflows/ci.yml's oven-sh/setup-bun version.
+bun 1.4.0

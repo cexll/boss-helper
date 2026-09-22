@@ -1,0 +1,16 @@
+# .github/CODEOWNERS — critical paths require named human review.
+# Mirrors AGENTS.md ## Critical Paths. Last match wins.
+# Until branch protection sets `require_code_owner_reviews`, this is routing only (review-only).
+
+# TODO(maintainer): replace with your GitHub handle (e.g. @Ocyss) — GitHub ignores entries that match no user.
+*                 @ocyss
+
+# Critical paths — white-box human review required:
+/wxt.config.ts                          @ocyss
+/src/utils/request.ts                   @ocyss
+/src/entrypoints/boss/requests.ts       @ocyss
+/src/entrypoints/boss/chat/             @ocyss
+/src/composables/useApplying/           @ocyss
+/src/composables/conf/                  @ocyss
+/src/types/formData.ts                  @ocyss
+/.github/workflows/                     @ocyss

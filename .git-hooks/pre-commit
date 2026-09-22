@@ -1,0 +1,16 @@
+#!/usr/bin/env bash
+# .git-hooks/pre-commit — fast local gate: canonicality naming, then staged lint/format.
+# CI owns exhaustive coverage; this hook owns the cheapest rejection (write->commit loop).
+# Skipping with --no-verify is forbidden by AGENTS.md § Agent Operating Rules.
+set -euo pipefail
+cd "$(git rev-parse --show-toplevel)"
+
+bash .git-hooks/check-naming.sh
+
+# lint-staged is the repo's declared staged-checker (package.json `lint-staged` block).
+if [ -x node_modules/.bin/lint-staged ]; then
+  node_modules/.bin/lint-staged
+else
+  echo "pre-commit: node_modules/.bin/lint-staged missing — run \`bun run setup\` (a hook that silently skips its checks is phantom enforcement)" >&2
+  exit 1
+fi

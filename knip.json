@@ -1,0 +1,29 @@
+{
+  "$schema": "https://unpkg.com/knip@6/schema.json",
+  "entry": [
+    "wxt.config.ts",
+    "src/entrypoints/**",
+    "src/index.ts",
+    "src/**/*.{test,spec}.{ts,tsx}",
+    "scripts/*.mjs"
+  ],
+  "project": ["src/**/*.{ts,tsx,vue,js,jsx,css}", "scripts/**/*.{mjs,sh}"],
+  "ignore": [
+    "src/entrypoints/boss/chat/geek-chat-core.2.0.4.umd.min.js",
+    ".wxt/**",
+    ".output/**",
+    ".run/**"
+  ],
+  "ignoreDependencies": [
+    "@types/*",
+    "@typescript-eslint/typescript-estree",
+    "lint-staged",
+    "jscpd",
+    "knip",
+    "openapi-typescript",
+    "proto2api",
+    "ts-proto",
+    "npm-run-all"
+  ],
+  "ignoreUnresolved": ["#imports", "wxt"]
+}

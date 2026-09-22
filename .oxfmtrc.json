@@ -5,5 +5,5 @@
   "sortImports": {
     "partitionByComment": true
   },
-  "ignorePatterns": ["*.min.js"]
+  "ignorePatterns": ["*.min.js", ".run/**", ".wxt/**", ".output/**"]
 }

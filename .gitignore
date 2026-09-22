@@ -36,3 +36,7 @@ logapi.zhipin.*.pem
 .wxt
 
 /temp
+
+# harness verification output (never committed)
+.run/
+coverage/

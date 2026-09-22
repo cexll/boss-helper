@@ -1,0 +1,23 @@
+#!/usr/bin/env bash
+# .git-hooks/commit-msg — Conventional Commits check, gitmoji-prefixed form allowed
+# (the repo history uses "✨ feat: …" / "🦄 refactor: …" — the emoji prefix is an
+# established convention here, not a violation).
+#
+# See AGENTS.md § Conventions → Commit format.
+set -euo pipefail
+
+msg_file="${1:?commit message file required}"
+subject="$(sed -n '1p' "$msg_file")"
+
+# Optional leading emoji/symbols, then type(scope)!: subject
+if ! printf '%s' "$subject" | grep -Eq '^[^a-zA-Z]*(feat|fix|refactor|chore|docs|test|ci|build|perf)(\([a-z0-9._/-]+\))?!?: .{1,72}$'; then
+  cat <<'EOF'
+Commit message must use Conventional Commits:
+  [emoji] type(scope): Subject under 72 chars
+
+Allowed types: feat, fix, refactor, chore, docs, test, ci, build, perf
+Example: fix(api): Reject empty refund ids
+Example: ✨ feat(chat): 添加WebSocket聊天功能
+EOF
+  exit 1
+fi
