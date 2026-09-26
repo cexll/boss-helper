@@ -98,7 +98,7 @@ In scope：FR-001～FR-030。Out of scope：Non-goals 全部内容。
 - Tests：匹配语义、迁移往返、处置与缓存、Jev 数据组装。
 - Docs / ops：无发布动作。
 
-### Validation Plan
+## Validation Plan
 
 - VAL-001: 英文完整词、版本号与技术名称语义（AC-001 后两例、AC-002）, Surface: business-flow, Evidence: bun test 用例输出
 - VAL-002: 包含组与排除组并存、任一或全部满足、只设排除组（AC-001 首例）, Surface: business-flow, Evidence: bun test 用例输出
@@ -125,7 +125,7 @@ In scope：FR-001～FR-030。Out of scope：Non-goals 全部内容。
 - P4 若显示后台严重节流，FR-020 只能如实提示而无法保证持续运行。
 - 现有筛选处理器所在文件列于覆盖率冻结的零覆盖遗留清单；改动它会让整文件受 85% 门禁约束。缓解：匹配与处置逻辑由新模块承担并测试，现有处理器只做薄委托；不得借此上调基线。
 
-### Mission Handoff
+## Mission Handoff
 
 - Suggested milestones: m0-probe, m1-keyword, m2-jev, m3-runtime, acceptance
 - Required evidence：上列 VAL 的命令输出、截图与实测记录。

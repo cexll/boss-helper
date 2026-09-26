@@ -3,7 +3,7 @@
 Description: 在真实环境只读实测 Jev 可达性、请求响应形态、超时与不确定结果，回写规格待定项
 Type: HITL
 Milestone: m0-probe
-Touches: None（实测记录写入会话证据目录，不改仓库代码）
+Touches: None
 Blocked by: None
 User stories covered: G2
 Estimate: 0.5 人天
