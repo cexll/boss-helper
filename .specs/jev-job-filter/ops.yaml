@@ -11,6 +11,8 @@
   command: 'bun run test:coverage && bun run check:coverage'
 - fact: 'CRAP ceiling per changed function is 15.76, diff-scoped'
   command: 'bun run check:crap'
+- fact: 'a fresh devflow worktree has no node_modules and no submodule checkout; before any test or typecheck run the submodule init then install (postinstall runs wxt prepare)'
+  command: 'git submodule update --init --recursive && bun install'
 - fact: 'anti-drift ratchet over lint, typecheck, format, duplicates, dead-code and size lanes; counts may only fall'
   command: 'bun run check:baseline'
 - fact: 'build smoke builds chrome-mv3 and asserts the manifest plus entry files; needs wxt prepare, which postinstall runs'

@@ -115,6 +115,8 @@ In scope：FR-001～FR-030。Out of scope：Non-goals 全部内容。
 - VAL-013: 切换标签页后继续或如实提示、间隔与并发不变（AC-013）, Surface: ui, Evidence: p2 实测记录 + 截图
 - VAL-014: 关于页无赞赏区块（AC-014）, Surface: ui, Evidence: 截图
 - VAL-015: 构建产物清单与入口, Surface: cli, Evidence: npm run build:smoke 退出码 0
+- VAL-016: Jev 可达性与请求形态实测（规格前置 P5，p1 的实测证据）, Behavior: 从插件页面与扩展后台两条路径分别记录 Jev 可达性与跨域限制、实际请求体字段（只含岗位标题与职位描述）、响应字段、耗时分布、错误与不确定结果的表现，并提出超时秒数、不确定判定方式与缓存期限, Surface: api, Evidence: p1 实测记录：脱敏请求与响应样本、耗时统计
+- VAL-017: 后台节流实测（规格前置 P4，p2 的实测证据）, Behavior: 加载已构建扩展，在测试账号上以现有安全间隔观察切换标签页 5、15、30 分钟后的间隔、请求暂停与计时延迟，并给出 t11 应提示的判定条件, Surface: ui, Evidence: p2 实测记录：间隔测量表、页面截图、控制台输出
 
 变更的 `.ts` 同时满足：行覆盖率 ≥85%、CRAP ≤15.76、基线只降不升。
 

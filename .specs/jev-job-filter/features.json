@@ -45,7 +45,9 @@
         "VAL-012",
         "VAL-013",
         "VAL-014",
-        "VAL-015"
+        "VAL-015",
+        "VAL-016",
+        "VAL-017"
       ],
       "reportOnly": true,
       "validatorKind": "acceptance",
@@ -81,27 +83,47 @@
     },
     {
       "id": "p1",
-      "description": "在真实环境只读实测 Jev 可达性、请求响应形态、超时与不确定结果，回写规格待定项",
+      "description": "在真实环境只读实测 Jev 可达性、请求响应形态、超时与不确定结果，把脱敏实测记录提交为仓库文档",
       "dependsOn": [],
       "milestone": "m0-probe",
-      "touches": [],
-      "fulfills": [],
+      "touches": ["docs/probes/jev-p1-record.md"],
+      "fulfills": ["VAL-016"],
+      "verification": {
+        "mode": "steps",
+        "steps": [
+          {
+            "id": "check",
+            "command": "bun run test",
+            "expectedExit": "zero"
+          }
+        ]
+      },
       "skillName": "tdd",
       "expectedBehavior": [
         "记录插件页面与扩展后台两条路径各自是否可达",
         "记录实际发出的请求体只含岗位标题与职位描述",
-        "超时秒数、不确定判定、缓存期限经用户确认并写入规格"
+        "超时秒数、不确定判定、缓存期限给出建议值并请用户确认（结论记录在交付文件中）"
       ],
       "origin": "plan",
       "addressesItemId": []
     },
     {
       "id": "p2",
-      "description": "实测切换标签页后流水线计时与请求被浏览器节流的程度",
+      "description": "实测切换标签页后流水线计时与请求被浏览器节流的程度，把脱敏实测记录提交为仓库文档",
       "dependsOn": [],
       "milestone": "m0-probe",
-      "touches": [],
-      "fulfills": [],
+      "touches": ["docs/probes/throttle-p2-record.md"],
+      "fulfills": ["VAL-017"],
+      "verification": {
+        "mode": "steps",
+        "steps": [
+          {
+            "id": "check",
+            "command": "bun run test",
+            "expectedExit": "zero"
+          }
+        ]
+      },
       "skillName": "tdd",
       "expectedBehavior": ["记录各时长下的实际间隔与暂停情况", "给出 t11 应提示的判定条件"],
       "origin": "plan",
