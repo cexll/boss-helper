@@ -2,6 +2,7 @@ import { renderTemplate } from '@/utils/ai'
 import type { HelperContext } from '~/composables/useHelper'
 
 import { sameCompanyKey, sameHrKey } from '../../entrypoints/boss/requests'
+import { decideJobContentKeyword, decideJobTitleKeyword } from './keywordMatch'
 import type { JobStatus, TaskContext, TaskResult } from './type'
 import { defineTaskHandler } from './type'
 import { loadSet, parseFiltering, rangeMatch, rangeMatchFormat, saveSet } from './utils'
@@ -154,17 +155,12 @@ export class TaskRegistry<C extends HelperContext<C, T, S>, T, S = {}> {
     return async (_ctx, { jobData: data }) => {
       const text = data.jobName.toLowerCase()
       if (!text) return taskResult.skip('岗位名为空')
-      for (const x of ctx.helper.conf.formData.jobTitle.value) {
-        if (text.includes(x.toLowerCase())) {
-          if (ctx.helper.conf.formData.jobTitle.include) {
-            return
-          }
-          return taskResult.skip(`岗位名含有排除关键词 [${x}]`)
-        }
+      const decision = decideJobTitleKeyword(text, ctx.helper.conf.formData.jobTitle)
+      if (!decision.skip) return
+      if (decision.reason === 'excluded') {
+        return taskResult.skip(`岗位名含有排除关键词 [${decision.keyword}]`)
       }
-      if (ctx.helper.conf.formData.jobTitle.include) {
-        return taskResult.skip('岗位名不包含关键词')
-      }
+      return taskResult.skip('岗位名不包含关键词')
     }
   })
 
@@ -245,21 +241,12 @@ export class TaskRegistry<C extends HelperContext<C, T, S>, T, S = {}> {
     }
     return async (ctx, { jobData }) => {
       const content = jobData.jobDescription.toLowerCase()
-      for (const x of ctx.helper.conf.formData.jobContent.value) {
-        if (!x) {
-          continue
-        }
-        const re = new RegExp(`(?<!(不|无).{0,5})${x.toLowerCase()}(?!系统|软件|工具|服务)`)
-        if (content != null && re.test(content)) {
-          if (ctx.helper.conf.formData.jobContent.include) {
-            return
-          }
-          return taskResult.skip(`工作内容含有排除关键词 [${x}]`)
-        }
+      const decision = decideJobContentKeyword(content, ctx.helper.conf.formData.jobContent)
+      if (!decision.skip) return
+      if (decision.reason === 'excluded') {
+        return taskResult.skip(`工作内容含有排除关键词 [${decision.keyword}]`)
       }
-      if (ctx.helper.conf.formData.jobContent.include) {
-        return taskResult.skip('工作内容中不包含关键词')
-      }
+      return taskResult.skip('工作内容中不包含关键词')
     }
   })
 
