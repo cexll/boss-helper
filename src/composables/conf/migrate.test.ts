@@ -3,12 +3,21 @@ import { beforeEach, describe, expect, test } from 'bun:test'
 import type { FormData } from '@/types/formData'
 
 import type * as HandlesNamespace from '../useApplying/handles'
-import { decideJobContentKeyword, decideJobTitleKeyword, evaluateKeywordRule } from '../useApplying/keywordMatch';
-import type { KeywordMatchDecision } from '../useApplying/keywordMatch';
+import {
+  decideJobContentKeyword,
+  decideJobTitleKeyword,
+  evaluateKeywordRule,
+} from '../useApplying/keywordMatch'
+import type { KeywordMatchDecision } from '../useApplying/keywordMatch'
 import { reviewNeededStore } from '../useApplying/reviewNeeded'
 import { defaultFormData } from './info'
-import { keywordConflictWords, keywordGroupEnabled, keywordRuleOf, migrateKeywordGroups } from './migrate';
-import type { KeywordFieldLike } from './migrate';
+import {
+  keywordConflictWords,
+  keywordGroupEnabled,
+  keywordRuleOf,
+  migrateKeywordGroups,
+} from './migrate'
+import type { KeywordFieldLike } from './migrate'
 
 type HandlesModule = typeof HandlesNamespace
 /**
