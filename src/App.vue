@@ -30,7 +30,7 @@ const items = computed<TabsItem[]>(() => {
     { slot: 'config', label: '配置', help: '好好看，好好学' },
     { slot: 'ai', label: 'AI', help: 'AI时代，脚本怎么能落伍!' },
     { slot: 'logs', label: '日志', help: '反正你也不看' },
-    { slot: 'about', label: '关于&赞赏', help: '项目是写不完美的,但总要去追求完美' },
+    { slot: 'about', label: '关于', help: '项目是写不完美的,但总要去追求完美' },
   ] satisfies (TabsItem | boolean | null | undefined | '')[]
 
   return configs.filter((item) => !!item) as TabsItem[]
