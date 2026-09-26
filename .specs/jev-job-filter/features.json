@@ -568,6 +568,71 @@
       "expectedBehavior": ["每条断言有结论与证据"],
       "origin": "plan",
       "addressesItemId": []
+    },
+    {
+      "dependsOn": ["t0"],
+      "touches": ["package.json", "bun.lock", "tsconfig.json"],
+      "fulfills": [],
+      "expectedBehavior": [
+        "bun add -d @types/bun 后 bun run check 的错误清单中不再出现来自 *.test.ts 的 TS2307 'bun:test'（其余 8 个遗留错误保持不变）",
+        "bun run test 与 bun run check:baseline 中 typecheck 元组的 test 文件相关条目不再新增（现有基线只降不升）"
+      ],
+      "addressesItemId": [],
+      "id": "fx-001",
+      "description": "为测试类型安装 @types/bun（AGENTS.md Note 2 的已知修法），消除 keywordMatch.test.ts 等测试文件的 TS2307 遗留模式",
+      "milestone": "m1-keyword",
+      "skillName": "tdd",
+      "verification": {
+        "mode": "steps",
+        "steps": [
+          {
+            "id": "check",
+            "command": "bun run test",
+            "expectedExit": "zero"
+          },
+          {
+            "id": "static",
+            "command": "bun run fmt:check",
+            "expectedExit": "zero"
+          }
+        ]
+      },
+      "cause": {
+        "kind": "gate",
+        "command": "bun run check:baseline",
+        "milestone": "m1-keyword"
+      },
+      "origin": "amend"
+    },
+    {
+      "dependsOn": ["p1"],
+      "touches": ["docs/probes/jev-p1-record.md"],
+      "fulfills": [],
+      "expectedBehavior": [
+        "§6.2 的证据句数值与 §5 标定表完全一致（明确 ≤0.07 / ≥0.96；含糊 0.24–0.32），不再出现与自身表格矛盾的区间或未定义类目",
+        "（0.2, 0.8）待复核带建议及其理由不变；不改 §4/§5 的任何测量数据"
+      ],
+      "addressesItemId": ["F-001"],
+      "id": "fx-002",
+      "description": "修正 p1 实测记录 §6.2 证据句：与 §5 标定表一致（明确样本 ≤0.07 / ≥0.96，含糊样本 0.24–0.32），删除未定义的\"纯别名\"类目改为\"空 state (n=5)\"",
+      "milestone": "m0-probe",
+      "skillName": "tdd",
+      "verification": {
+        "mode": "steps",
+        "steps": [
+          {
+            "id": "check",
+            "command": "bun run test",
+            "expectedExit": "zero"
+          }
+        ]
+      },
+      "cause": {
+        "kind": "review",
+        "itemId": "F-001",
+        "feature": "p1"
+      },
+      "origin": "amend"
     }
   ]
 }
