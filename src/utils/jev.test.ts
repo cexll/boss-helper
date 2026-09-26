@@ -179,6 +179,22 @@ test('空白密钥视同未配置', async () => {
   expect(outcome).toEqual({ status: 'error', reason: '未配置 Jev 密钥' })
 })
 
+test('密钥读取失败（读取器拒绝）时返回明确错误且不发起任何请求', async () => {
+  let called = 0
+  const outcome = await askJev(job, question, {
+    getApiKey: async () => {
+      throw new Error('storage read failed')
+    },
+    transport: async () => {
+      called += 1
+      throw new Error('must not be called')
+    },
+  })
+
+  expect(outcome).toEqual({ status: 'error', reason: '读取 Jev 密钥失败' })
+  expect(called).toBe(0)
+})
+
 test('超时（传输层被中止）返回待复核，而不是错误或放行', async () => {
   const outcome = await askJev(job, question, {
     getApiKey: async () => 'k',
@@ -392,6 +408,58 @@ test('消息校验 fail-closed：标题/描述不是字符串时拒绝且不向 
   expect(jevCalls).toBe(0)
 })
 
+test('后台路径：密钥读取失败时 sendResponse 收到密钥读取失败原因，且不向 Jev 发起请求', async () => {
+  const channel = runtimeChannel()
+  let jevCalls = 0
+  registerJevBackgroundHandler(channel, {
+    getApiKey: async () => {
+      throw new Error('storage read failed')
+    },
+    transport: async () => {
+      jevCalls += 1
+      throw new Error('must not be called')
+    },
+  })
+
+  const response = await channel.sendMessage({
+    type: JEV_ASK_MESSAGE,
+    payload: {
+      state: { job_title: job.title, job_description: job.description },
+      questions: { direction: { type: 'noul', instructions: question.instructions } },
+    },
+  })
+
+  expect(response).toEqual({ status: 'error', reason: '读取 Jev 密钥失败' })
+  expect(jevCalls).toBe(0)
+})
+
+test('后台应答链兜底：载荷解析之外的依赖失败也必须 sendResponse 关闭端口', async () => {
+  const channel = runtimeChannel()
+  let jevCalls = 0
+  registerJevBackgroundHandler(channel, {
+    getApiKey: async () => 'k',
+    transport: async () => {
+      jevCalls += 1
+      throw new Error('must not be called')
+    },
+  })
+
+  // 载荷经 Proxy 让 parseJevAskPayload 抛错（模拟未预料的依赖失败）：
+  // 应答链必须兜底为 error outcome，否则消息端口不关闭、service worker 记未处理 rejection
+  const explodingPayload = new Proxy(
+    {},
+    {
+      get() {
+        throw new Error('payload explode')
+      },
+    },
+  )
+  const response = await channel.sendMessage({ type: JEV_ASK_MESSAGE, payload: explodingPayload })
+
+  expect(response).toEqual({ status: 'error', reason: '后台处理 Jev 请求失败' })
+  expect(jevCalls).toBe(0)
+})
+
 test('非 Jev 消息（如 comctx 协议消息）不响应、不发起请求', async () => {
   const channel = runtimeChannel()
   let jevCalls = 0
@@ -457,6 +525,25 @@ test('降级路径：页面直连成功时不调用后台，直连超时也不�
     },
   })
   expect(outcome.status).toBe('reviewNeeded')
+  expect(backgroundCalls).toBe(0)
+})
+
+test('降级路径：页面侧密钥读取失败时返回密钥读取失败，不发起任何请求也不降级', async () => {
+  let backgroundCalls = 0
+  const outcome = await askJevWithFallback(job, question, {
+    getApiKey: async () => {
+      throw new Error('storage read failed')
+    },
+    transport: async () => {
+      throw new Error('must not be called')
+    },
+    viaBackground: async () => {
+      backgroundCalls += 1
+      return { status: 'error', reason: 'must not be called' }
+    },
+  })
+
+  expect(outcome).toEqual({ status: 'error', reason: '读取 Jev 密钥失败' })
   expect(backgroundCalls).toBe(0)
 })
 

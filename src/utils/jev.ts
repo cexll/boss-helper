@@ -125,6 +125,9 @@ function timeoutOutcome(): JevOutcome {
   return { status: 'reviewNeeded', reason: 'Jev 判断超时（单次尝试不重试），已放入待复核' }
 }
 
+/** 密钥读取失败（读取器拒绝）时的错误原因：与「未配置」区分，指向读取本身失败（t5 评审 F-006） */
+const KEY_READ_FAILED_REASON = '读取 Jev 密钥失败'
+
 /** 组装一次调用的 `RequestInit`：密钥只进请求头，不进任何日志 */
 function buildRequestInit(apiKey: string, body: JevRequestBody, signal: AbortSignal): RequestInit {
   return {
@@ -148,7 +151,14 @@ export async function askJev(
     timeoutMs?: number
   },
 ): Promise<JevOutcome> {
-  const apiKey = (await deps.getApiKey())?.trim()
+  // 密钥读取本身也可能失败（存储不可用等）：同样收敛为 error outcome，
+  // 绝不让异常逃出 Promise<JevOutcome> 契约（t5 评审 F-006）
+  let apiKey: string | undefined
+  try {
+    apiKey = (await deps.getApiKey())?.trim()
+  } catch {
+    return { status: 'error', reason: KEY_READ_FAILED_REASON }
+  }
   if (!apiKey) {
     return { status: 'error', reason: '未配置 Jev 密钥' }
   }
@@ -330,8 +340,12 @@ export function registerJevBackgroundHandler(bus: JevMessageBus, deps: JevBackgr
     if (!payload) {
       return
     }
-    // MV3：监听器返回 true 表示异步应答，await 完成后再 sendResponse 具体结果
-    void runJevAskMessage(payload, deps).then(sendResponse)
+    // MV3：监听器返回 true 表示异步应答，await 完成后再 sendResponse 具体结果。
+    // 任何依赖失败都必须收敛为 error outcome（t5 评审 F-006）：端口才会关闭，
+    // service worker 才不会留下未处理 rejection
+    void runJevAskMessage(payload, deps)
+      .catch(() => ({ status: 'error' as const, reason: '后台处理 Jev 请求失败' }))
+      .then(sendResponse)
     return true
   })
 }
@@ -479,8 +493,14 @@ export async function askJevWithFallback(
     timeoutMs?: number
   },
 ): Promise<JevOutcome> {
-  // 页面侧读不到密钥时不必先失败一次：后台持有自己的密钥（FR-017 的同一降级路径）
-  const apiKey = (await deps.getApiKey())?.trim()
+  // 页面侧读不到密钥时不必先失败一次：后台持有自己的密钥（FR-017 的同一降级路径）；
+  // 读取本身失败（存储不可用等）时收敛为 error outcome，绝不降级也绝不让异常逃出契约（t5 评审 F-006）
+  let apiKey: string | undefined
+  try {
+    apiKey = (await deps.getApiKey())?.trim()
+  } catch {
+    return { status: 'error', reason: KEY_READ_FAILED_REASON }
+  }
   if (apiKey) {
     const outcome = await askJev(job, question, {
       getApiKey: async () => apiKey,
