@@ -170,8 +170,8 @@ test('非法正则关键词在任意文本下抛错，包括 null（构造正则
   expect(() => decideJobContentKeyword(null, { include: false, value: ['c++'] })).toThrow()
 })
 
-import { evaluateKeywordRule, isKeywordRuleEmpty } from './keywordMatch';
-import type { KeywordRule } from './keywordMatch';
+import { evaluateKeywordRule, isKeywordRuleEmpty } from './keywordMatch'
+import type { KeywordRule } from './keywordMatch'
 
 // ————————————————————————————————————————————————————————————————————————————
 // t1 新关键词引擎：包含组（任一/全部）+ 排除组 + 英文完整词/版本号/技术名称。
