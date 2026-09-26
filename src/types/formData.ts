@@ -74,8 +74,39 @@ export interface FormData {
   delayDeliveryPageNext: number
   delayMessageSending: number
   version: string
+  jev?: JevConfig
 
   [key: string]: any
+}
+
+/**
+ * Jev 方向判断配置（FR-010 / AC-006）：开关 + 目标岗位方向描述。
+ *
+ * 目标方向留在 FormData（持久化配置）里，供 t8 判定依据与 t9 缓存键使用；
+ * **密钥不在这里**——它只存浏览器存储 `local:jev-api-key`（t5 已合并的约定，
+ * 后台代发请求 FR-017 从该键读取）。若把密钥塞进 FormData，confSaving 会把
+ * 它复制进第二份存储、formData 的 watchThrottled 调试日志还会把它打进日志，
+ * 违反「密钥只存浏览器存储、不进日志」的凭证纪律（这个失败模式是注释存在的理由）。
+ */
+export interface JevConfig {
+  /** 启用开关：密钥与目标方向任一空白都不能置为 true（AC-006）。 */
+  enable: boolean
+  /** 目标岗位方向描述（纯字符串）。 */
+  targetDirection: string
+}
+
+/** Jev 启用门控的输入：密钥来自浏览器存储，目标方向来自 FormData。 */
+export interface JevEnableInput {
+  apiKey: string
+  targetDirection: string
+}
+
+/**
+ * Jev 启用门控（FR-010 / AC-006）：密钥或目标方向为空白即不能启用。
+ * 纯函数：只判空白、不碰 I/O，设置页与后续流水线共用同一判定。
+ */
+export function canEnableJev(input: JevEnableInput): boolean {
+  return input.apiKey.trim() !== '' && input.targetDirection.trim() !== ''
 }
 
 export interface FormInfoAi {

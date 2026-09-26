@@ -134,6 +134,11 @@ export const formInfoData: Record<string, any> = {
       'data-help': '步行时间, 为0禁用，单位: 分钟',
     },
   },
+  jev: {
+    label: 'Jev 方向判断',
+    'data-help':
+      '按目标岗位方向判断岗位是否相关；需自备 Jev 密钥并填写目标方向，缺一不能启用（FR-010 / AC-006）',
+  },
 }
 
 export const defaultFormData: FormData = {
@@ -313,6 +318,10 @@ export const defaultFormData: FormData = {
   },
   record: {
     enable: false,
+  },
+  jev: {
+    enable: false,
+    targetDirection: '',
   },
   delayDeliveryStarts: 3,
   delayDeliveryInterval: 5,
