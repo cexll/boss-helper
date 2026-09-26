@@ -747,6 +747,52 @@
         "feature": "t5"
       },
       "origin": "amend"
+    },
+    {
+      "dependsOn": ["t6"],
+      "touches": [
+        "src/composables/useApplying/reviewNeeded.ts",
+        "src/composables/useApplying/reviewNeeded.test.ts",
+        "src/components/Tabs/Statistics.vue"
+      ],
+      "fulfills": [],
+      "expectedBehavior": [
+        "待复核「今日累计」计数在列表为空（刷新后）时依然显示，不再依赖 reviewNeededList.length > 0 的 v-if 条件（F-003）",
+        "同一岗位在当日重复进入待复核时，「今日累计」只计一次；按岗位 key 去重并跨日重置（F-004）",
+        "「不投递也不计入过滤」文案修正为与实际口径一致：当次不投递、不缓存、不计入排除（附带观察，不占 itemId）",
+        "去重语义先写失败测试：同岗位多次进入→计数仍为 1；不同岗位分别计数；跨日重置后可再计"
+      ],
+      "addressesItemId": ["F-003", "F-004"],
+      "id": "fx-006",
+      "description": "修 t6 评审发现：待复核计数器移出 v-if 显示条件、按岗位 key 当日去重，并修正误导性 data-help 文案（fx-004 的替代票，验证步骤改为可绿）",
+      "milestone": "m1-keyword",
+      "skillName": "tdd",
+      "verification": {
+        "mode": "steps",
+        "steps": [
+          {
+            "id": "check",
+            "command": "bun test ./src",
+            "expectedExit": "zero"
+          },
+          {
+            "id": "static",
+            "command": "bun run fmt:check",
+            "expectedExit": "zero"
+          },
+          {
+            "id": "scope",
+            "command": "bunx oxfmt --check src/composables/useApplying/reviewNeeded.ts src/composables/useApplying/reviewNeeded.test.ts src/components/Tabs/Statistics.vue",
+            "expectedExit": "zero"
+          }
+        ]
+      },
+      "cause": {
+        "kind": "gate",
+        "command": "coverage-gate (declared impossible: pre-existing chatModel/runtime FAIL rows)",
+        "milestone": "m1-keyword"
+      },
+      "origin": "amend"
     }
   ]
 }
