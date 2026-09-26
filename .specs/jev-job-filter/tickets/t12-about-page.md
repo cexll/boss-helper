@@ -21,4 +21,4 @@ Estimate: 0.25 人天
 
 Fulfills: VAL-014
 
-- Evidence expected: 截图
+- Verification: bun run build:smoke (exit zero)
