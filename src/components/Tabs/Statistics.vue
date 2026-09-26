@@ -1,8 +1,10 @@
 <script lang="ts" setup>
-import { computed, onMounted, ref } from 'vue'
+import { computed, onMounted, onUnmounted, ref } from 'vue'
 
 import Alert from '@/components/Alert.vue'
 import { useConf } from '@/composables/conf'
+import { reviewNeededStore } from '@/composables/useApplying/reviewNeeded'
+import type { ReviewNeededEntry } from '@/composables/useApplying/reviewNeeded'
 import { useHelper } from '@/composables/useHelper'
 
 const helper = useHelper()
@@ -11,6 +13,20 @@ const { todayData, statisticsData } = helper.statistics
 
 // const { next, page } = usePager()
 const conf = useConf()
+
+// 待复核列表：页面内（模块单例）Read 列表，subscribe 保证随流水线处置实时刷新
+const reviewNeededList = ref<ReviewNeededEntry[]>(reviewNeededStore.list())
+const unsubscribeReviewNeeded = reviewNeededStore.subscribe((entries) => {
+  reviewNeededList.value = entries
+})
+onUnmounted(unsubscribeReviewNeeded)
+
+// 今日待复核统计累计（旧统计对象可能没有该字段，按 0 处理）
+const reviewNeededCounter = computed(() => {
+  const statistics = todayData.value as { reviewNeeded?: number }
+  return statistics.reviewNeeded ?? 0
+})
+
 const statisticCycle = ref(1)
 
 const statisticCycleData = [
@@ -115,6 +131,21 @@ onMounted(() => {
           {{ cycle + todayData.success }}
           <span class="text-sm text-gray-400">份</span>
         </div>
+      </div>
+    </div>
+    <div
+      v-if="reviewNeededList.length > 0"
+      class="flex flex-col gap-1"
+      data-help="当前页面待人工复核的岗位，不投递也不计入过滤，刷新后清空"
+    >
+      <div class="text-sm text-gray-500 flex items-center gap-2">
+        待复核：
+        <UBadge color="warning" variant="subtle">{{ reviewNeededList.length }}</UBadge>
+        <span class="text-gray-400">今日累计 {{ reviewNeededCounter }}</span>
+      </div>
+      <div v-for="item in reviewNeededList" :key="item.key" class="flex items-center gap-2 text-sm">
+        <span class="truncate max-w-[220px]" :title="item.jobName">{{ item.jobName }}</span>
+        <UBadge color="warning" variant="subtle">{{ item.reason }}</UBadge>
       </div>
     </div>
     <div class="flex flex-row gap-2 items-center justify-center">
