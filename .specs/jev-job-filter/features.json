@@ -793,6 +793,49 @@
         "milestone": "m1-keyword"
       },
       "origin": "amend"
+    },
+    {
+      "dependsOn": ["t7"],
+      "touches": [
+        "src/composables/conf/index.ts",
+        "src/composables/conf/info.ts",
+        "src/components/Tabs/AI.vue",
+        "src/composables/conf/migrate.ts",
+        "src/composables/conf/migrate.test.ts"
+      ],
+      "fulfills": [],
+      "expectedBehavior": [
+        "F-009：AI 页内对目标方向的编辑有持久化路径，重载后不丢失（写回 formData 且随 confSaving 落盘；或提供明确保存按钮，行为与配置页一致）",
+        "F-010：存储中损坏的 jev 值（null/非对象/缺字段）加载后被归一为默认关闭形态，AI 标签页不崩溃",
+        "F-008：会话默认值别名化不把启用状态的 Jev 复活进从未启用过 Jev 的存量配置（默认对象不得因 in-session 编辑而泄漏进存储）",
+        "每个修复先写失败测试：目标方向编辑→重载保留；jev:null 加载→不抛错且开关关闭；存量配置无 jev→保存后仍无 jev"
+      ],
+      "addressesItemId": ["F-008", "F-009", "F-010"],
+      "id": "fx-007",
+      "description": "修 t7 评审发现：目标方向编辑持久化、损坏 jev:null 归一、会话默认值别名化",
+      "milestone": "m2-jev",
+      "skillName": "tdd",
+      "verification": {
+        "mode": "steps",
+        "steps": [
+          {
+            "id": "check",
+            "command": "bun test ./src",
+            "expectedExit": "zero"
+          },
+          {
+            "id": "static",
+            "command": "bun run fmt:check",
+            "expectedExit": "zero"
+          }
+        ]
+      },
+      "cause": {
+        "kind": "review",
+        "itemId": "F-008",
+        "feature": "t7"
+      },
+      "origin": "amend"
     }
   ]
 }
