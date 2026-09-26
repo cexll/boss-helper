@@ -491,3 +491,82 @@ test('英文词位于文本末尾时仍守完整词：包含 java 不命中「�
     reason: 'missing',
   })
 })
+
+// ————————————————————————————————————————————————————————————————————————————
+// t2 否定词规则（FR-004 / AC-004 / VAL-003）：否定词只作用于职位描述排除词，
+// 包含词与岗位名称不做否定判断，关键词后接“系统、软件、工具、服务”不再阻止命中。
+// 期望值取自 spec.md FR-004 原文、AC-004 三个例句与 CONTEXT.md 结论，逐字取自已
+// 确认规格，而非出自实现。
+// 调用点契约：职位描述字段启用 { negateExclusions: true }，岗位名称字段不启用
+// （省略选项即无否定判断）。
+// ————————————————————————————————————————————————————————————————————————————
+
+const evalDesc = (text: string, over: Partial<KeywordRule>) =>
+  evaluateKeywordRule(text, rule(over), { negateExclusions: true })
+
+test('排除词否定窗口：「无外包」不被排除词「外包」拒绝（AC-004 首例）', () => {
+  expect(evalDesc('无外包', { excludeWords: ['外包'] })).toEqual({ skip: false })
+})
+
+test('排除词否定窗口：「不是外包」「不需要外包」均不算命中（「不」在窗口内）', () => {
+  expect(evalDesc('不是外包', { excludeWords: ['外包'] })).toEqual({ skip: false })
+  expect(evalDesc('不需要外包', { excludeWords: ['外包'] })).toEqual({ skip: false })
+})
+
+test('排除词否定窗口：「无需外包经验」不算命中（「无」在窗口内）', () => {
+  expect(evalDesc('无需外包经验', { excludeWords: ['外包'] })).toEqual({ skip: false })
+})
+
+test('排除词否定窗口边界：否定词在命中前 5 字内不算命中，相距 6 字起恢复命中', () => {
+  expect(evalDesc('不甲甲甲甲外包', { excludeWords: ['外包'] })).toEqual({ skip: false })
+  expect(evalDesc('不甲甲甲甲甲外包', { excludeWords: ['外包'] })).toEqual({
+    skip: true,
+    reason: 'excluded',
+    keyword: '外包',
+  })
+})
+
+test('排除词否定窗口逐处判定：仅被否定的出现不计数，另一处出现仍命中', () => {
+  expect(evalDesc('无外包，自研产品', { excludeWords: ['外包'] })).toEqual({ skip: false })
+  expect(evalDesc('无外包经验，外包驻场', { excludeWords: ['外包'] })).toEqual({
+    skip: true,
+    reason: 'excluded',
+    keyword: '外包',
+  })
+})
+
+test('包含词不做否定判断：「不加班，Java开发」命中包含词 Java（AC-004 第二例）', () => {
+  expect(evalDesc('不加班，Java开发', { includeWords: ['Java'] })).toEqual({ skip: false })
+})
+
+test('包含词不做否定判断：「无Java经验」仍命中包含词 Java（否定判断只作用于排除词）', () => {
+  expect(evalDesc('无Java经验', { includeWords: ['Java'] })).toEqual({ skip: false })
+})
+
+test('后缀不再阻止命中：关键词后接「系统」仍命中包含词 Java（AC-004 第三例）', () => {
+  expect(evalDesc('Java系统开发', { includeWords: ['Java'] })).toEqual({ skip: false })
+})
+
+test('后缀不再阻止命中：后接 系统/软件/工具/服务 的排除词照常被拒绝', () => {
+  for (const suffix of ['系统', '软件', '工具', '服务']) {
+    expect(evalDesc(`外包${suffix}维护`, { excludeWords: ['外包'] })).toEqual({
+      skip: true,
+      reason: 'excluded',
+      keyword: '外包',
+    })
+  }
+})
+
+test('岗位名称不做否定判断：未启用否定窗口时「无外包」照常被排除词拒绝', () => {
+  expect(evaluateKeywordRule('无外包', rule({ excludeWords: ['外包'] }))).toEqual({
+    skip: true,
+    reason: 'excluded',
+    keyword: '外包',
+  })
+})
+
+test('否定窗口与包含组并存：排除词被否定、包含词照常命中时放行', () => {
+  expect(evalDesc('无外包，Java开发', { includeWords: ['Java'], excludeWords: ['外包'] })).toEqual({
+    skip: false,
+  })
+})
