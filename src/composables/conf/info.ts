@@ -1,5 +1,6 @@
 import type { FormData } from '@/types/formData'
 
+import { emptyKeywordGroup } from './migrate'
 // TODO: 移除info, 忘记当初为啥要维护这一坨了, 还是直接写组件里面好看
 
 export const formInfoData: Record<string, any> = {
@@ -148,12 +149,14 @@ export const defaultFormData: FormData = {
     value: [],
     options: [],
     enable: false,
+    groups: emptyKeywordGroup(),
   },
   jobContent: {
     include: false,
     value: [],
     options: [],
     enable: false,
+    groups: emptyKeywordGroup(),
   },
   hrPosition: {
     include: true,

@@ -9,6 +9,7 @@ import { exportJson, importJson } from '@/utils/jsonImportExport'
 import { logger } from '@/utils/logger'
 
 import { defaultFormData } from './info'
+import { migrateKeywordFields } from './migrate'
 
 export * from './info'
 
@@ -130,21 +131,32 @@ const FROM_VERSION: [string, (from: Partial<FormData>) => Partial<FormData>][] =
       return from
     },
   ],
+  ['20260926', (from) => migrateKeywordFields(from)],
 ]
+
+/**
+ * 存量配置逐级迁移（FROM_VERSION 倒序补跑，存量 version 达到即停）。
+ * 纯函数：无 toast / 日志 / 存储副作用，可被 bun test 直接验证；
+ * formDataHandler 只包一层 try/catch + 用户提示。
+ */
+export function migrateFormData(from: Partial<FormData>): Partial<FormData> {
+  for (let i = FROM_VERSION.length - 1; i >= 0; i--) {
+    const [version, fn] = FROM_VERSION[i]!
+    if ((from?.version ?? '20240401') >= version) {
+      break
+    }
+    from = fn(from)
+    from.version = version
+  }
+  return from
+}
 
 export const useConf = () => {
   const toast = useToast()
 
   async function formDataHandler(from: Partial<FormData>) {
     try {
-      for (let i = FROM_VERSION.length - 1; i >= 0; i--) {
-        const [version, fn] = FROM_VERSION[i]!
-        if ((from?.version ?? '20240401') >= version) {
-          break
-        }
-        from = fn(from)
-        from.version = version
-      }
+      from = migrateFormData(from)
     } catch (err) {
       logger.error('用户配置初始化失败', err)
       toast.add({

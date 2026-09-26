@@ -1,8 +1,10 @@
+import { keywordGroupEnabled, keywordRuleOf } from '@/composables/conf/migrate'
 import { renderTemplate } from '@/utils/ai'
 import type { HelperContext } from '~/composables/useHelper'
 
 import { sameCompanyKey, sameHrKey } from '../../entrypoints/boss/requests'
-import { decideJobContentKeyword, decideJobTitleKeyword } from './keywordMatch'
+import { evaluateKeywordRule } from './keywordMatch'
+import { recordReviewNeeded } from './reviewNeeded'
 import type { JobStatus, TaskContext, TaskResult } from './type'
 import { defineTaskHandler } from './type'
 import { loadSet, parseFiltering, rangeMatch, rangeMatchFormat, saveSet } from './utils'
@@ -149,13 +151,24 @@ export class TaskRegistry<C extends HelperContext<C, T, S>, T, S = {}> {
   )
 
   jobTitle = defineTaskHandler<C, T, S>('岗位名', (ctx) => {
-    if (!ctx.helper.conf.formData.jobTitle.enable) {
+    const field = ctx.helper.conf.formData.jobTitle
+    // FR-002：空规则（或冲突词）不能启用——enable 开着但组为空时按未启用处理，
+    // 不注册任务（筛选行为完全由新引擎给出）。
+    if (!keywordGroupEnabled(field)) {
       return
     }
-    return async (_ctx, { jobData: data }) => {
-      const text = data.jobName.toLowerCase()
-      if (!text) return taskResult.skip('岗位名为空')
-      const decision = decideJobTitleKeyword(text, ctx.helper.conf.formData.jobTitle)
+    return async (ctx, { jobData: data }) => {
+      const text = data.jobName?.toLowerCase() ?? ''
+      if (!text) {
+        recordReviewNeeded(
+          data,
+          '岗位名为空',
+          'missing_field',
+          ctx.helper.statistics.todayData.value,
+        )
+        return taskResult.skip('岗位名为空')
+      }
+      const decision = evaluateKeywordRule(text, keywordRuleOf(field))
       if (!decision.skip) return
       if (decision.reason === 'excluded') {
         return taskResult.skip(`岗位名含有排除关键词 [${decision.keyword}]`)
@@ -236,12 +249,25 @@ export class TaskRegistry<C extends HelperContext<C, T, S>, T, S = {}> {
     }
   })
   jobContent = defineTaskHandler<C, T, S>('工作内容', (ctx) => {
-    if (!ctx.helper.conf.formData.jobContent.enable) {
+    const field = ctx.helper.conf.formData.jobContent
+    // FR-002：空规则（或冲突词）不能启用，enable 开着但组为空时按未启用处理。
+    if (!keywordGroupEnabled(field)) {
       return
     }
     return async (ctx, { jobData }) => {
-      const content = jobData.jobDescription.toLowerCase()
-      const decision = decideJobContentKeyword(content, ctx.helper.conf.formData.jobContent)
+      const content = jobData.jobDescription?.toLowerCase()
+      if (!content) {
+        recordReviewNeeded(
+          jobData,
+          '工作内容为空',
+          'missing_field',
+          ctx.helper.statistics.todayData.value,
+        )
+        return taskResult.skip('工作内容为空')
+      }
+      const decision = evaluateKeywordRule(content, keywordRuleOf(field), {
+        negateExclusions: true,
+      })
       if (!decision.skip) return
       if (decision.reason === 'excluded') {
         return taskResult.skip(`工作内容含有排除关键词 [${decision.keyword}]`)

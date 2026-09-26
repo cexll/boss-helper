@@ -9,14 +9,36 @@ export interface Statistics {
   }
 }
 
+/** 包含词组合方式的候选值（FR-001；t4 设置页下拉与迁移共用）。 */
+export const keywordIncludeModes = ['any', 'all'] as const
+export type KeywordIncludeMode = (typeof keywordIncludeModes)[number]
+
+/** 关键词组（FR-001）：同字段包含组与排除组并存，包含组可选任一/全部满足。 */
+export interface KeywordGroup {
+  /** 包含词：includeMode 决定任一或全部命中即放行 */
+  includeWords: string[]
+  /** 排除词：命中任一即排除（职位描述字段启用 FR-004 否定窗口，岗位名不做否定判断） */
+  excludeWords: string[]
+  /** 包含词组合方式；旧配置迁移固定为 any（FR-006） */
+  includeMode: KeywordIncludeMode
+}
+
+/**
+ * 关键词筛选字段：旧键（include/value/options/enable）原样保留，
+ * groups 是新引擎读取的关键词组，由迁移或设置页写入（FR-006）。
+ */
+export interface KeywordFieldConfig extends FormDataSelect {
+  groups: KeywordGroup
+}
+
 const ConfigLevels = ['beginner', 'intermediate', 'advanced', 'expert'] as const
 export type ConfigLevel = (typeof ConfigLevels)[number]
 
 export interface FormData {
   configLevel: ConfigLevel
   company: FormDataSelect
-  jobTitle: FormDataSelect
-  jobContent: FormDataSelect
+  jobTitle: KeywordFieldConfig
+  jobContent: KeywordFieldConfig
   hrPosition: FormDataSelect
   jobAddress: FormDataSelect
   salaryRange: FormSalaryRangeInput
