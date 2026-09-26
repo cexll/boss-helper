@@ -1,7 +1,12 @@
 import { isKeywordRuleEmpty } from '@/composables/useApplying/keywordMatch'
 import type { KeywordRule } from '@/composables/useApplying/keywordMatch'
 import { keywordIncludeModes } from '@/types/formData'
-import type { FormData, KeywordFieldConfig, KeywordGroup } from '@/types/formData'
+import type {
+  FormData,
+  KeywordFieldConfig,
+  KeywordGroup,
+  KeywordIncludeMode,
+} from '@/types/formData'
 
 /**
  * 旧“包含/排除”二选一配置 -> 新关键词组的迁移与校验（FR-002 / FR-006）。
@@ -20,27 +25,46 @@ export function emptyKeywordGroup(): KeywordGroup {
   return { includeWords: [], excludeWords: [], includeMode: 'any' }
 }
 
-/** value 里只接受字符串词；缺失或损坏的旧存储按空词表处理，不抛错。 */
-function legacyWords(value: unknown): string[] {
+/** 词表里只接受字符串词；缺失或损坏的存储（旧 value 键与 groups 词表共用）按空词表处理，不抛错。 */
+function wordsOf(value: unknown): string[] {
   return Array.isArray(value) ? value.filter((w): w is string => typeof w === 'string') : []
+}
+/** includeMode 归一：合法候选值（any/all）原样保留，缺失/损坏一律回退 any（缺省即旧包含语义）。 */
+function resolveIncludeMode(mode: unknown): KeywordIncludeMode {
+  return (keywordIncludeModes as readonly string[]).includes(mode as string)
+    ? (mode as KeywordIncludeMode)
+    : 'any'
 }
 export type MigratedKeywordField = KeywordFieldLike & { groups: KeywordGroup }
 
 /**
  * 旧配置 -> 关键词组（FR-006）：include=true 的旧词进包含组并设“任一满足”；
  * include=false 的旧词进排除组（只设排除组）；其他旧键原样保留，不删除用户数据。
- * 已带 groups 的字段不再改写，因此对同一份配置重复执行结果不变（幂等）。
+ * 已带 groups 键的字段按同一规则归一（词表只留字符串词、includeMode 缺失/损坏回退 any），
+ * 因此对同一份配置重复执行结果不变（幂等）；形状损坏的 groups（缺词表 / 词表非数组 /
+ * 非 plain 对象）经此归一后总能成为可求值的良构规则，不再向流水线输出会抛错的规则
+ * （评审 F-005）；只有 groups 键缺失时才按旧 include/value 推导（评审 F-001 的存量路径）。
  */
 export function migrateKeywordGroups(field: KeywordFieldLike): MigratedKeywordField {
-  if (field.groups) {
-    return field as MigratedKeywordField
+  const groups = field.groups
+  if (groups && typeof groups === 'object' && !Array.isArray(groups)) {
+    return {
+      ...field,
+      groups: {
+        includeWords: wordsOf(groups.includeWords),
+        excludeWords: wordsOf(groups.excludeWords),
+        includeMode: resolveIncludeMode(groups.includeMode),
+      },
+    }
   }
-  const words = legacyWords(field.value)
-  const groups: KeywordGroup =
-    field.include === true
-      ? { includeWords: words, excludeWords: [], includeMode: 'any' }
-      : { includeWords: [], excludeWords: words, includeMode: 'any' }
-  return { ...field, groups }
+  const words = wordsOf(field.value)
+  return {
+    ...field,
+    groups:
+      field.include === true
+        ? { includeWords: words, excludeWords: [], includeMode: 'any' }
+        : { includeWords: [], excludeWords: words, includeMode: 'any' },
+  }
 }
 
 /** 只迁移存在的字段；其余输入（缺失/非对象）原样返回 undefined。 */
@@ -50,9 +74,9 @@ function migrateKeywordField(field: unknown): KeywordFieldLike | undefined {
     : undefined
 }
 
-/** 取字段生效的关键词组：缺少 groups 的旧存储原地按 FR-006 推导（容错未迁移配置）。 */
+/** 取字段生效的关键词组：缺失/未迁移/形状损坏的 groups 原地按 FR-006 推导或归一。 */
 function keywordGroupOf(field: KeywordFieldLike): KeywordGroup {
-  return field.groups ?? migrateKeywordGroups(field).groups
+  return migrateKeywordGroups(field).groups
 }
 
 /** 字段生效的关键词组 -> 新引擎规则（字段名与 KeywordRule 对齐）。 */
@@ -61,19 +85,21 @@ export function keywordRuleOf(field: KeywordFieldLike): KeywordRule {
   return {
     includeWords: group.includeWords,
     excludeWords: group.excludeWords,
-    // 存储值损坏/未知时回退 any（迁移与默认值均为 any）
-    includeMode: (keywordIncludeModes as readonly string[]).includes(group.includeMode)
-      ? (group.includeMode as KeywordRule['includeMode'])
-      : 'any',
+    includeMode: resolveIncludeMode(group.includeMode),
   }
 }
 
 /**
- * enable 门控（FR-002 / AC-003）：空规则不能启用。
- * 关键路径上的两处使用——迁移不改写旧 enable，判定时以本函数为准。
+ * enable 门控（FR-002 / AC-003）：空规则不能启用；同一词同在包含与排除组（冲突）时，
+ * 修正前同样不能启用——冲突规则经 exclusion-wins 求值后排除组失效， Registration 门控
+ * 必须与 t4 设置页共用同一判定（评审 F-002）。
  */
 export function keywordGroupEnabled(field: KeywordFieldLike): boolean {
-  return field.enable === true && !isKeywordRuleEmpty(keywordRuleOf(field))
+  return (
+    field.enable === true &&
+    !isKeywordRuleEmpty(keywordRuleOf(field)) &&
+    keywordConflictWords(keywordGroupOf(field)).length === 0
+  )
 }
 
 /**

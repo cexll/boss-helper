@@ -191,8 +191,7 @@ describe('defaultFormData 携带新字段（新装用户直接得到关键词组
 // ————————————————————————————————————————————————————————————————————————————
 // AC-005 新旧结果一致性（以 t0 旧实现为 oracle 的对照语料）。
 // 语料选择依据（spec.md FR-003 / FR-004 / AC-005）：
-//  AC-005 只要求「同一批不涉及 FR-003/FR-004 语义变化的岗位」结果一致，因此
-//  语料明确排除四类已知语义变化（见 divergenceTable），并逐类断言其确实不同，
+//  语料明确排除五类已知语义变化（见 divergenceTable），并逐类断言其确实不同，
 //  证明排除不是掩盖而是规格允许的差异：
 //  D1 职位描述否定窗口收窄（FR-004：否定词距关键词 ≤6 字屏蔽 → 恰好 5 字），
 //     距 6 字的输入旧实现放行、新实现排除。
@@ -202,6 +201,9 @@ describe('defaultFormData 携带新字段（新装用户直接得到关键词组
 //     仍命中、后接字母不命中），旧实现子串包含、新实现完整词。
 //  D4 旧实现的正则化关键词（旧实现把用户词编译成正则，如 a+b 视为 a+ b）与新引擎
 //     的固定字面量语义不同；语料只使用无正则元字符的词。
+//  D5 空关键词语义（AC-005 差异登记，FR-002 空词保护）：旧实现岗位名匹配没有空串
+//     保护，空串词命中任意文本（排除词表含空词即排除所有岗位）；新引擎空词不算词，
+//     空词表按空规则 fail-closed（missing，且启用门控拒绝注册）。
 // 期望值（expected 字段）逐字取自已确认的规格例句与旧实现语义，而非迁移实现。
 // ————————————————————————————————————————————————————————————————————————————
 
@@ -273,6 +275,9 @@ const corpusTuples: CorpusTuple[] = [
   ['title-ex-order', 'jobTitle', '销售顾问', false, ['外包', '销售'], 'excluded:销售'],
   // 岗位名不做否定判断（FR-004），新旧一致
   ['title-no-negation', 'jobTitle', '不需要 Java 外包', false, ['外包'], 'excluded:外包'],
+  // 岗位名不做否定判断（FR-004）：否定词紧邻排除词（窗口内）时排除仍然生效——
+  // 若岗位名调用点误开 negateExclusions，该配置在本行的处置会从排除翻转为放行（F-003）。
+  ['title-negation-in-window', 'jobTitle', '不需要外包', false, ['外包'], 'excluded:外包'],
   // 职位描述：包含命中（带 系统/软件/工具/服务 后缀的属 D2，不入语料）
   ['desc-zh-hit', 'jobContent', '周末双休', true, ['双休'], 'pass'],
   ['desc-en-hit', 'jobContent', '熟悉 Java 开发', true, ['java'], 'pass'],
@@ -308,7 +313,7 @@ interface DivergenceRow {
   reason: string
 }
 
-/** 已知语义变化（不进入对照语料）：逐类断言旧/新确实不同，引 FR-003/FR-004 原文。 */
+/** 已知语义变化（不进入对照语料）：逐类断言旧/新确实不同，引 FR-003/FR-004 与 AC-005 原文。 */
 const divergenceTable: DivergenceRow[] = [
   {
     key: 'D1-window-6',
@@ -381,6 +386,17 @@ const divergenceTable: DivergenceRow[] = [
     reason:
       'FR-003/新引擎：用户词是固定字面量；旧实现把 a+b 编译成正则「a+ 后跟 b」故命中 aab，新实现不命中。',
   },
+  {
+    key: 'D5-blank-word',
+    field: 'jobTitle',
+    text: '后端工程师',
+    include: false,
+    value: [''],
+    legacyExpected: 'excluded:',
+    newExpected: 'missing',
+    reason:
+      'AC-005 差异登记（FR-002 空词保护）：旧实现岗位名匹配无空串保护，空字符串词命中任意岗位名——排除词表含空词即排除所有岗位；新引擎空词/纯空白不算词（isKeywordRuleEmpty 空规则语义），空词表按空规则 fail-closed（missing，且 keywordGroupEnabled 拒绝注册）。',
+  },
 ]
 
 describe('AC-005 对照语料：迁移+新引擎 与 t0 旧实现 结果一致', () => {
@@ -410,7 +426,7 @@ describe('AC-005 对照语料：迁移+新引擎 与 t0 旧实现 结果一致',
   })
 })
 
-describe('AC-005 语料排除登记：四类已知语义变化确实不同（规格允许，非掩盖）', () => {
+describe('AC-005 语料排除登记：五类已知语义变化确实不同（规格允许，非掩盖）', () => {
   test('排除登记每条：旧实现与新实现输出如登记所示', () => {
     for (const row of divergenceTable) {
       const legacy = legacyPath(row.field, row.text, { include: row.include, value: row.value })

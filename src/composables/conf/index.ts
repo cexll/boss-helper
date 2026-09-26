@@ -167,6 +167,14 @@ export const useConf = () => {
     return from
   }
 
+  /**
+   * 读取存储中的用户配置并走同一条迁移路径（F-001）：init / confReload / confExport
+   * 一律经此函数取数，任何读存储 formData 的路径都不可能再绕过 migrateFormData。
+   */
+  async function readStoredFormData(): Promise<FormData> {
+    const from = await counter.storageGet<Partial<FormData>>(formDataKey(), {})
+    return deepmerge<FormData>(defaultFormData, await formDataHandler(from))
+  }
   async function init() {
     isLoading.value = true
     try {
@@ -180,10 +188,7 @@ export const useConf = () => {
       formDataPreset.value = rawFormDataPreset
       formDataPresets.value = rawFormDataPresets
 
-      let from = await counter.storageGet<Partial<FormData>>(formDataKey(), {})
-      from = (await formDataHandler(from)) ?? from
-      const data = deepmerge<FormData>(defaultFormData, from)
-      Object.assign(formData, data)
+      Object.assign(formData, await readStoredFormData())
     } catch (e) {
       toast.add({
         title: `配置加载失败: ${String(e)}`,
@@ -218,8 +223,7 @@ export const useConf = () => {
   }
 
   async function confReload() {
-    const v = deepmerge<FormData>(defaultFormData, await counter.storageGet(formDataKey(), {}))
-    deepmerge(formData, v, { clone: false })
+    deepmerge(formData, await readStoredFormData(), { clone: false })
     logger.debug('formData已重置')
     toast.add({
       title: '重置成功',
@@ -228,8 +232,8 @@ export const useConf = () => {
   }
 
   async function confExport() {
-    const data = deepmerge<FormData>(defaultFormData, await counter.storageGet(formDataKey(), {}))
-    exportJson(data, '打招呼配置')
+    // 与 confReload 同路径：导出迁移后的形状，导入端拿到的就是带 groups 的新配置（F-001）。
+    exportJson(await readStoredFormData(), '打招呼配置')
   }
 
   async function confImport() {
