@@ -836,6 +836,105 @@
         "feature": "t7"
       },
       "origin": "amend"
+    },
+    {
+      "dependsOn": [
+        "v-m1",
+        "v-m2",
+        "t11",
+        "p1",
+        "p2",
+        "t0",
+        "t1",
+        "t10",
+        "t12",
+        "t2",
+        "t3",
+        "t4",
+        "t5",
+        "t6",
+        "t7",
+        "t8",
+        "t9"
+      ],
+      "touches": [],
+      "fulfills": [],
+      "expectedBehavior": [
+        "每条断言有结论与证据（含 VAL-015：bun run build:smoke 退出码 0——该断言由既有 build:smoke 门承担，无需实现票）",
+        "仓库规定界面为人工审查；不做真实投递除非用户逐次批准"
+      ],
+      "addressesItemId": [],
+      "id": "a-final-2",
+      "description": "在最终构建上逐条验证全部断言（替代被取消的 a-final，验收语义不变）",
+      "milestone": "acceptance",
+      "proves": [
+        "VAL-001",
+        "VAL-002",
+        "VAL-003",
+        "VAL-004",
+        "VAL-005",
+        "VAL-006",
+        "VAL-007",
+        "VAL-008",
+        "VAL-009",
+        "VAL-010",
+        "VAL-011",
+        "VAL-012",
+        "VAL-013",
+        "VAL-014",
+        "VAL-015",
+        "VAL-016",
+        "VAL-017"
+      ],
+      "reportOnly": true,
+      "validatorKind": "acceptance",
+      "skillName": "user-validate-flow",
+      "verification": {
+        "mode": "steps",
+        "steps": [
+          {
+            "id": "check",
+            "command": "bun run build:smoke",
+            "expectedExit": "zero"
+          }
+        ]
+      },
+      "cause": {
+        "kind": "gate",
+        "command": "t13 cancelled: VAL-015 satisfied by existing build:smoke",
+        "milestone": "acceptance"
+      },
+      "origin": "amend"
+    },
+    {
+      "dependsOn": ["a-final-2"],
+      "touches": [".agents/qa/"],
+      "fulfills": [],
+      "expectedBehavior": [
+        ".agents/qa/flows/ 下流程契约含五节且可被后续运行直接执行",
+        "仅 a-final-2 判为 pass 的断言写成可回归流程，其余标注真实状态"
+      ],
+      "addressesItemId": [],
+      "id": "a-promote-2",
+      "description": "将 a-final-2 证实通过的断言写成本仓库可复用的流程契约（承接被取消的 a-promote）",
+      "milestone": "acceptance",
+      "skillName": "tdd",
+      "verification": {
+        "mode": "steps",
+        "steps": [
+          {
+            "id": "check",
+            "command": "bun run test",
+            "expectedExit": "zero"
+          }
+        ]
+      },
+      "cause": {
+        "kind": "gate",
+        "command": "t13 cancelled: VAL-015 satisfied by existing build:smoke",
+        "milestone": "acceptance"
+      },
+      "origin": "amend"
     }
   ]
 }
