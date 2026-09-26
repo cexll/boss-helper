@@ -134,9 +134,8 @@ onMounted(() => {
       </div>
     </div>
     <div
-      v-if="reviewNeededList.length > 0"
       class="flex flex-col gap-1"
-      data-help="当前页面待人工复核的岗位，不投递也不计入过滤，刷新后清空"
+      data-help="待复核岗位当次不投递、不缓存、不计入排除；列表刷新后清空，今日累计按岗位当日去重"
     >
       <div class="text-sm text-gray-500 flex items-center gap-2">
         待复核：
