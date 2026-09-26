@@ -711,6 +711,42 @@
         "feature": "t6"
       },
       "origin": "amend"
+    },
+    {
+      "dependsOn": ["t5"],
+      "touches": ["src/utils/jev.ts", "src/utils/jev.test.ts"],
+      "fulfills": [],
+      "expectedBehavior": [
+        "getApiKey 拒绝时 askJev 与 askJevWithFallback 返回 error 型 JevOutcome（原因指向密钥读取失败），不抛出，调用方的 FR-013 待复核映射不被绕过",
+        "registerJevBackgroundHandler 的应答链在任何依赖失败下都调用 sendResponse，MV3 消息端口必定关闭，service worker 无未处理 rejection",
+        "新增失败测试钉死：注入抛错的 getApiKey，直接路径返回 error outcome 且未发起请求；后台路径 sendResponse 被调用且 reason 为密钥读取失败"
+      ],
+      "addressesItemId": ["F-006"],
+      "id": "fx-005",
+      "description": "修 t5 评审 F-006：密钥读取异常逃逸 Promise<JevOutcome> 契约，且后台消息链无 catch 导致端口不关闭",
+      "milestone": "m2-jev",
+      "skillName": "tdd",
+      "verification": {
+        "mode": "steps",
+        "steps": [
+          {
+            "id": "check",
+            "command": "bun test ./src",
+            "expectedExit": "zero"
+          },
+          {
+            "id": "static",
+            "command": "bun run fmt:check",
+            "expectedExit": "zero"
+          }
+        ]
+      },
+      "cause": {
+        "kind": "review",
+        "itemId": "F-006",
+        "feature": "t5"
+      },
+      "origin": "amend"
     }
   ]
 }
