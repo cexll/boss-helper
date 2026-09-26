@@ -665,6 +665,52 @@
         "feature": "t12"
       },
       "origin": "amend"
+    },
+    {
+      "dependsOn": ["t6"],
+      "touches": [
+        "src/composables/useApplying/reviewNeeded.ts",
+        "src/composables/useApplying/reviewNeeded.test.ts",
+        "src/components/Tabs/Statistics.vue"
+      ],
+      "fulfills": [],
+      "expectedBehavior": [
+        "待复核「今日累计」计数在列表为空（刷新后）时依然可显示，不再依赖 reviewNeededList.length > 0 的 v-if 条件（F-003）",
+        "同一岗位在当日重复进入待复核时，「今日累计」只计一次；按岗位 key 去重，刷新与切换页面后仍保持去重语义（F-004）",
+        "「不投递也不计入过滤」文案修正为与实际口径一致：待复核岗位当次不投递、不缓存、不计入排除；投递比例按既有 total/success 计算（附带观察，不占 itemId）",
+        "去重语义先写失败测试：同岗位多次进入待复核再刷新，计数仍为 1；不同岗位分别计数"
+      ],
+      "addressesItemId": ["F-003", "F-004"],
+      "id": "fx-004",
+      "description": "修 t6 评审发现：待复核计数器移出 v-if 显示条件、按岗位去重的当日统计，并修正误导性 data-help 文案",
+      "milestone": "m1-keyword",
+      "skillName": "tdd",
+      "verification": {
+        "mode": "steps",
+        "steps": [
+          {
+            "id": "check",
+            "command": "bun run test",
+            "expectedExit": "zero"
+          },
+          {
+            "id": "coverage",
+            "command": "bun run test:coverage && node scripts/coverage-gate.mjs --lcov .run/coverage/lcov.info --json",
+            "expectedExit": "zero"
+          },
+          {
+            "id": "crap",
+            "command": "CRAP_BASE=HEAD~1 bun run check:crap",
+            "expectedExit": "zero"
+          }
+        ]
+      },
+      "cause": {
+        "kind": "review",
+        "itemId": "F-003",
+        "feature": "t6"
+      },
+      "origin": "amend"
     }
   ]
 }
