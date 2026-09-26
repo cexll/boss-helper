@@ -1,11 +1,14 @@
 import { keywordGroupEnabled, keywordRuleOf } from '@/composables/conf/migrate'
+import { getCurDay } from '@/utils'
 import { renderTemplate } from '@/utils/ai'
 import type { HelperContext } from '~/composables/useHelper'
 
 import { sameCompanyKey, sameHrKey } from '../../entrypoints/boss/requests'
+import type { JevAskFn, JevDirectionDeps, JevStage, JevStageHandoff } from './jevDirection'
+import { judgeJevDirection } from './jevDirection'
 import { evaluateKeywordRule } from './keywordMatch'
 import { recordReviewNeeded } from './reviewNeeded'
-import type { JobStatus, TaskContext, TaskResult } from './type'
+import type { JobStatus, Task, TaskContext, TaskResult } from './type'
 import { defineTaskHandler } from './type'
 import { loadSet, parseFiltering, rangeMatch, rangeMatchFormat, saveSet } from './utils'
 
@@ -69,7 +72,69 @@ export const taskResult = {
   }),
 }
 
+/**
+ * Jev 方向判断处理器的注入项（t8）：判定语义全在 jevDirection.ts，本类只做流水线委托。
+ * `stage` 决定注册成哪个步骤：title 在岗位详情获取之前（标题判不相关则不取详情），
+ * recheck 在详情阶段本地硬条件之后、AI 筛选之前（复判仍不确定则待复核）。
+ */
+export interface JevDirectionOptions {
+  stage: JevStage
+  askJev: JevAskFn
+  handoff?: JevStageHandoff
+  getApiKey?: JevDirectionDeps['getApiKey']
+  deps?: string[]
+}
+
 export class TaskRegistry<C extends HelperContext<C, T, S>, T, S = {}> {
+  /**
+   * Jev 方向判断（t8 / FR-012）：判定语义全部在 jevDirection.ts，这里只做流水线委托。
+   * title 阶段注册在岗位详情获取之前（标题判不相关则不取详情、不调 AI 筛选）；
+   * recheck 阶段注册在详情阶段本地硬条件之后、AI 筛选之前（复判不确定 → 待复核）。
+   * 未启用（FR-010）时不注册任务：零 Jev 请求、零待复核、不拦截。
+   */
+  jevDirection = (opt: JevDirectionOptions): Task<C, T, S> => {
+    const { stage, askJev, handoff, getApiKey, deps } = opt
+    const id = stage === 'title' ? 'Jev方向判断' : 'Jev方向复判'
+    return defineTaskHandler<C, T, S>(
+      id,
+      (ctx) => {
+        if (!ctx.helper.conf.formData.jev?.enable) {
+          return
+        }
+        return async (ctx, { jobData }) => {
+          const jevDeps: JevDirectionDeps = {
+            stage,
+            askJev,
+            getTargetDirection: () => ctx.helper.conf.formData.jev?.targetDirection,
+            recordReviewNeeded,
+            statistics: ctx.helper.statistics.todayData.value,
+            getToday: () => getCurDay(ctx.now),
+            getApiKey,
+            handoff,
+          }
+          const verdict = await judgeJevDirection(
+            {
+              key: jobData.key,
+              jobName: jobData.jobName,
+              jobDescription: jobData.jobDescription,
+            },
+            jevDeps,
+          )
+          if (verdict.decision === 'pass') {
+            return
+          }
+          // skip（明确不相关）与 reviewNeeded（模块内已记账）都终止本轮流水线：
+          // 不投递、不写排除缓存、不进 AI 筛选（FR-012 / FR-013 / AC-007）
+          return taskResult.skip(verdict.reason)
+        }
+      },
+      {
+        state: 'ai',
+        stateMsg: stage === 'title' ? 'Jev方向判断中' : 'Jev方向复判中',
+      },
+    )({ deps: deps ?? [] })
+  }
+
   SameCompanyFilter = defineTaskHandler<C, T, S>(
     '重复沟通-相同公司',
     async (ctx) => {

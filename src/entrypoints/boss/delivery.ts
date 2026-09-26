@@ -1,5 +1,10 @@
 import { TaskRegistry, taskResult } from '@/composables/useApplying/handles'
+import type { JevAskFn, JevStageHandoff } from '@/composables/useApplying/jevDirection'
+import { createJevStageHandoff } from '@/composables/useApplying/jevDirection'
 import { defineTaskHandler, defineTaskWorkflow } from '@/composables/useApplying/type'
+import { counter } from '@/message'
+import type { JevKeyReader } from '@/utils/jev'
+import { askJev as askJevClient, JEV_API_KEY_STORAGE_KEY } from '@/utils/jev'
 
 import { getBossData, sendPublishReq } from './requests'
 import type { BossHelperCtx } from './runtime'
@@ -12,6 +17,30 @@ export type BoosJobData = {
 }
 
 const tasks = new TaskRegistry<BossHelperCtx, BoosJobData>()
+
+/**
+ * 标题阶段 → 详情复判阶段的交接：随流水线模块生命周期（FR-012）。
+ * 标题阶段含糊时记待复判，详情阶段的本地硬条件通过后由复判步骤消费并再问一次 Jev；
+ * 标题阶段已定论的岗位不残留标记，复判步骤零请求放行。
+ */
+const jevHandoff: JevStageHandoff = createJevStageHandoff()
+
+/**
+ * 密钥读取（FR-010：只存浏览器存储）：页面路径与后台 FR-017 同键 `local:jev-api-key`。
+ * 经 counter（content↔background 通道）读取，密钥不进页面消息体、不进日志。
+ */
+const getJevApiKey: JevKeyReader = async () => {
+  const stored = await counter.storageGet<string>(JEV_API_KEY_STORAGE_KEY)
+  return typeof stored === 'string' ? stored : null
+}
+
+/**
+ * t5 页面侧客户端（askJev）：单次尝试、单次超时（t5 JEV_TIMEOUT_MS，p1 §6.1），
+ * 密钥由注入的读取器供给。页面上下文不可达时的 error outcome 由 jevDirection
+ * 收敛为待复核（AC-012：如实说明，不引入其他模型或中转）。
+ */
+const askJev: JevAskFn = (job, question, getApiKey) =>
+  askJevClient(job, question, { getApiKey: getApiKey ?? getJevApiKey })
 
 export const bossWorkflow = defineTaskWorkflow<BossHelperCtx, BoosJobData>(
   defineTaskHandler(
@@ -34,6 +63,12 @@ export const bossWorkflow = defineTaskWorkflow<BossHelperCtx, BoosJobData>(
   tasks.salaryRange(), // 薪资筛选
   tasks.companySizeRange(), // 公司规模筛选
   tasks.goldHunterFilter(), // 猎头过滤
+  tasks.jevDirection({
+    stage: 'title',
+    askJev,
+    handoff: jevHandoff,
+    getApiKey: getJevApiKey,
+  }), // Jev标题判断：判不相关则不取详情、不调 AI 筛选（FR-012 / AC-007）
   defineTaskHandler(
     '岗位详情获取',
     () => async (ctx, job) => {
@@ -70,7 +105,14 @@ export const bossWorkflow = defineTaskWorkflow<BossHelperCtx, BoosJobData>(
   ), // 金牌面试官过滤
 
   tasks.amap({ deps: ['岗位详情获取'] }), // 高德地图
-  tasks.aiFiltering({ deps: ['岗位详情获取'] }), // AI过滤
+  tasks.jevDirection({
+    stage: 'recheck',
+    askJev,
+    handoff: jevHandoff,
+    getApiKey: getJevApiKey,
+    deps: ['岗位详情获取'],
+  }), // Jev方向复判：标题阶段含糊的岗位仍不确定 → 待复核（FR-012）
+  tasks.aiFiltering({ deps: ['岗位详情获取'] }), // AI过滤（Jev 在前，方向不匹配不进入：FR-016）
 
   defineTaskHandler('岗位投递', () => async (_, { rawData }) => {
     await sendPublishReq({
@@ -84,10 +126,6 @@ export const bossWorkflow = defineTaskWorkflow<BossHelperCtx, BoosJobData>(
   }), // 投递
 
   defineTaskHandler('Boss信息获取', () => async (ctx, { rawData }) => {
-    // await sendPublishReq({
-    //   securityId: rawData.jobitem.securityId,
-    //   encryptJobId: rawData.jobitem.encryptJobId,
-    // })
     ctx.log.info('获取Boss信息', {
       securityId: rawData.jobitem.securityId,
       encryptJobId: rawData.jobitem.encryptJobId,
