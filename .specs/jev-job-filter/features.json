@@ -633,6 +633,38 @@
         "feature": "p1"
       },
       "origin": "amend"
+    },
+    {
+      "dependsOn": ["t12"],
+      "touches": [],
+      "fulfills": [],
+      "expectedBehavior": [
+        "在最终构建的扩展页面上，关于标签页不含任何赞赏区块或赞赏图片引用，其余关于内容与其它标签页正常渲染，并留存截图证据",
+        "验证记录携带证据文件路径与 sha256"
+      ],
+      "addressesItemId": ["F-002"],
+      "id": "fx-003",
+      "description": "在构建产物上验证 t12 的关于页精简（VAL-014）并留存截图证据",
+      "milestone": "m1-keyword",
+      "proves": ["VAL-014"],
+      "reportOnly": true,
+      "skillName": "user-validate-flow",
+      "verification": {
+        "mode": "steps",
+        "steps": [
+          {
+            "id": "check",
+            "command": "bun run build:smoke",
+            "expectedExit": "zero"
+          }
+        ]
+      },
+      "cause": {
+        "kind": "review",
+        "itemId": "F-002",
+        "feature": "t12"
+      },
+      "origin": "amend"
     }
   ]
 }
