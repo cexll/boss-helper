@@ -344,4 +344,41 @@ describe('AI 标签页真实渲染（F-009/F-010 UI 侧）', () => {
     await conf.confReload()
     expect(conf.formData.jev!.targetDirection).toBe('后端开发')
   })
+
+  test("t7-F-017：清空方向后失焦落盘 → enable 一并归 false，不残留 {enable:true,targetDirection:''}", async () => {
+    const conf = await freshConf({
+      version: '20260926',
+      jev: { enable: true, targetDirection: '前端开发' },
+    })
+    await renderAiTab()
+    // SSR 不跑 onMounted：密钥经真实 v-model 事件写回（等价用户在密钥框输入）
+    const input = captured.get('UInput') as any
+    input['onUpdate:modelValue']('sk-test')
+    const textarea = captured.get('UTextarea') as any
+    const onBlur = textarea.onBlur as () => Promise<void> | void
+    // 控制组：方向在位、密钥在位 → 失焦只落盘，enable 不动
+    await onBlur()
+    const before = storageMap.get(FORM_DATA_KEY) as { jev?: JevConfig }
+    expect(before.jev).toEqual({ enable: true, targetDirection: '前端开发' })
+    // 用户清空方向再失焦：enable 同步关闭
+    textarea['onUpdate:modelValue']('')
+    await onBlur()
+    const stored = storageMap.get(FORM_DATA_KEY) as { jev?: JevConfig }
+    expect(stored.jev).toEqual({ enable: false, targetDirection: '' }) // 不残留启用态
+    expect(conf.formData.jev!.enable).toBe(false) // 会话内同样降级
+  })
+
+  test('t7-F-017：密钥尚未读取完成时，失焦不据空密钥降级已启用状态（方向在位）', async () => {
+    const conf = await freshConf({
+      version: '20260926',
+      jev: { enable: true, targetDirection: '前端开发' },
+    })
+    await renderAiTab()
+    // 不注入密钥（模拟 onMounted 的存储回读尚未完成）：方向在位，失焦不得关闭 Jev
+    const textarea = captured.get('UTextarea') as any
+    await (textarea.onBlur as () => Promise<void> | void)()
+    const stored = storageMap.get(FORM_DATA_KEY) as { jev?: JevConfig }
+    expect(stored.jev).toEqual({ enable: true, targetDirection: '前端开发' })
+    expect(conf.formData.jev!.enable).toBe(true)
+  })
 })

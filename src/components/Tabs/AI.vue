@@ -27,6 +27,8 @@ function change(v: Partial<FormDataAi>) {
 const jev = computed<JevConfig>(() => conf.formData.jev!)
 const apiKey = ref('')
 const apiKeyVisible = ref(false)
+/** 密钥是否已完成存储回读：回读前 apiKey 恒为空串，失焦门不得据此降级已启用的 Jev。 */
+const apiKeyLoaded = ref(false)
 const jevConsentShow = ref(false)
 
 const lockByWorkflow = computed(() => helper.workflow?.status.value === 'running')
@@ -35,6 +37,14 @@ const lockByWorkflow = computed(() => helper.workflow?.status.value === 'running
 const jevCanEnable = computed(() =>
   canEnableJev({ apiKey: apiKey.value, targetDirection: jev.value.targetDirection }),
 )
+/** 落盘门：启用态只允许在密钥与方向都在位时持久化（t7-F-017）。
+ *  方向空白是一眼可见的缺项，直接判定；密钥只在回读完成后参与判定，
+ *  否则 onMounted 读盘未完成时的失焦会误关一个密钥其实存在的启用态。 */
+function jevGateHolds(): boolean {
+  if (jev.value.targetDirection.trim() === '') return false
+  if (apiKeyLoaded.value && apiKey.value.trim() === '') return false
+  return true
+}
 /** 启用后仍允许关闭：只有「未启用且缺项」时才禁用开关。 */
 const jevSwitchDisabled = computed(
   () => lockByWorkflow.value || (!jevCanEnable.value && !jev.value.enable),
@@ -57,14 +67,20 @@ async function saveApiKey() {
 }
 
 /** 评审 F-009：目标方向属于 FormData，随配置落盘；失焦即保存，与密钥输入框失焦提交同模式，
- *  否则 AI 页内的编辑只会停留在内存里，重载后静默回退。 */
+ *  否则 AI 页内的编辑只会停留在内存里，重载后静默回退。
+ *  评审 t7-F-017：落盘前重断言 canEnableJev——方向被清空后 enable 一并落为 false，
+ *  不残留 {enable:true,targetDirection:''}（fx-009 的流水线缺字段待复核是兜底，不是放行门）。 */
 function saveTargetDirection() {
+  if (!jevGateHolds()) {
+    jev.value.enable = false
+  }
   conf.confSaving()
 }
 
 onMounted(async () => {
   const stored = await counter.storageGet<string>(JEV_API_KEY_STORAGE_KEY)
   if (typeof stored === 'string') apiKey.value = stored
+  apiKeyLoaded.value = true
 })
 
 /** 开关交互：关闭直接生效；开启先弹授权确认，确认后才真正启用。 */

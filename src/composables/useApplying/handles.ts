@@ -230,6 +230,8 @@ export class TaskRegistry<C extends HelperContext<C, T, S>, T, S = {}> {
           '岗位名为空',
           'missing_field',
           ctx.helper.statistics.todayData.value,
+          // F-025：缺字段记账与 fx-006 同一当日去重口径（缺 {today} 时列表清空后会重复累计）
+          { today: getCurDay(ctx.now) },
         )
         return taskResult.skip('岗位名为空')
       }
@@ -327,6 +329,8 @@ export class TaskRegistry<C extends HelperContext<C, T, S>, T, S = {}> {
           '工作内容为空',
           'missing_field',
           ctx.helper.statistics.todayData.value,
+          // F-025：同上，缺字段路径统一补当日键
+          { today: getCurDay(ctx.now) },
         )
         return taskResult.skip('工作内容为空')
       }

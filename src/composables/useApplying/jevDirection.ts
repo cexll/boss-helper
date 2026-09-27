@@ -44,6 +44,9 @@ const JEV_TITLE_CONFIRM_NO = JEV_UNCERTAIN_BAND.low
 /** 发往 Jev 的问题 id（t5 单问题载荷） */
 const JEV_QUESTION_ID = 'direction'
 
+/** F-029：启用但方向为空的缺字段口径（与 handles.ts 的 missing-field 路径同类）。 */
+const MISSING_DIRECTION_REASON = '目标方向为空，Jev 无法判断'
+
 /** 发给 Jev 的是非（noul）问题定义：目标方向进入问题文本，岗位内容只走 state（FR-011） */
 interface JevDirectionQuestion {
   id: string
@@ -224,16 +227,23 @@ export async function judgeJevDirection(
     if (!deps.handoff?.takePending(job.key)) {
       return { decision: 'pass' }
     }
-    return recheckWithDescription(job, deps, deps.getTargetDirection()?.trim() ?? '')
+    // F-029：运行中方向被清空 → 缺字段待复核，不拿空方向组题请求（fail-closed）
+    const direction = deps.getTargetDirection()?.trim() ?? ''
+    if (!direction) {
+      return recordAndReturn(job, deps, MISSING_DIRECTION_REASON, 'missing_field')
+    }
+    return recheckWithDescription(job, deps, direction)
   }
   // 上一轮留下的复判标记先消费掉：标题本轮自己会给出新的结论，
   // 残留标记（上轮含糊、这轮已定论）会让详情阶段再发一次无谓的复判请求
   deps.handoff?.takePending(job.key)
 
-  // FR-010：目标方向未配置/空白 → Jev 视为未启用：零请求、零记账、不拦截
+  // F-029 / FR-013：启用但目标方向为空（用户可达的持久态 {enable:true,targetDirection:''}）
+  // 是「所需字段缺失」而非「未启用」——未启用在注册门（handles.ts 按 jev.enable）已被拦下。
+  // 空方向无法组题、无法进缓存：记账待复核（missing_field），零请求，绝不静默放行。
   const direction = deps.getTargetDirection()?.trim() ?? ''
   if (!direction) {
-    return { decision: 'pass' }
+    return recordAndReturn(job, deps, MISSING_DIRECTION_REASON, 'missing_field')
   }
 
   // t9 / AC-009：同岗位同判定依据命中缓存 → 直接复用明确终判，不再请求 Jev；
