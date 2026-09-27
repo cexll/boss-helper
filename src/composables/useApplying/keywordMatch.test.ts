@@ -170,8 +170,42 @@ test('非法正则关键词在任意文本下抛错，包括 null（构造正则
   expect(() => decideJobContentKeyword(null, { include: false, value: ['c++'] })).toThrow()
 })
 
+import type { FormData } from '@/types/formData'
+import deepmerge, { jsonClone } from '@/utils/deepmerge'
+
+import { defaultFormData } from '../conf/info'
+import {
+  keywordConflictWords,
+  keywordGroupEnabled,
+  migrateKeywordFields,
+  migrateKeywordGroups,
+} from '../conf/migrate'
+import type { KeywordFieldLike } from '../conf/migrate'
 import { evaluateKeywordRule, isKeywordRuleEmpty } from './keywordMatch'
 import type { KeywordRule } from './keywordMatch'
+
+let migrateFormDataFn: ((from: Record<string, unknown>) => Record<string, unknown>) | undefined
+async function loadMigrateFormData(): Promise<
+  (from: Record<string, unknown>) => Record<string, unknown>
+> {
+  if (!('window' in globalThis)) {
+    Object.defineProperty(globalThis, 'window', {
+      value: { location: { search: '' } },
+      configurable: true,
+    })
+    Object.defineProperty(globalThis, 'useToast', {
+      value: () => ({ add: () => {} }),
+      configurable: true,
+    })
+  }
+  if (!migrateFormDataFn) {
+    const { migrateFormData } = await import('../conf/index')
+    migrateFormDataFn = migrateFormData as unknown as (
+      from: Record<string, unknown>,
+    ) => Record<string, unknown>
+  }
+  return migrateFormDataFn
+}
 
 // ————————————————————————————————————————————————————————————————————————————
 // t1 新关键词引擎：包含组（任一/全部）+ 排除组 + 英文完整词/版本号/技术名称。
@@ -465,6 +499,65 @@ test('版本号后紧跟字母仍不算命中：Java 不命中「Java8s 开发�
   })
 })
 
+// ————————————————————————————————————————————————————————————————————————————
+// 点分版本号（评审 F-021）：版本尾段允许「数字段加点」（如 3.2 / 1.8 / 14.17），
+// Vue3.2/Java1.8/Node14.17/Python3.11/SpringBoot3.2 属同一 token 的版本后缀，仍命中；
+// 点后接字母（vue.js）与纯字母后缀（JavaScript）仍不算版本号（F-022 维持现状）。
+// 期望值：FR-003「后接数字=版本号仍命中」+ F-021 复现语料（Vue3.2/Java1.8 等）。
+// ————————————————————————————————————————————————————————————————————————————
+
+test('点分版本号：Vue 命中「Vue3.2 前端工程师」', () => {
+  expect(evaluateKeywordRule('Vue3.2 前端工程师', rule({ includeWords: ['Vue'] }))).toEqual({
+    skip: false,
+  })
+})
+
+test('点分版本号：Java 命中「熟练掌握Java1.8」', () => {
+  expect(evaluateKeywordRule('熟练掌握Java1.8', rule({ includeWords: ['Java'] }))).toEqual({
+    skip: false,
+  })
+})
+
+test('点分版本号：Node 命中「Node14.17 服务端开发」', () => {
+  expect(evaluateKeywordRule('Node14.17 服务端开发', rule({ includeWords: ['Node'] }))).toEqual({
+    skip: false,
+  })
+})
+
+test('点分版本号：Python 命中「Python3.11 数据分析」', () => {
+  expect(evaluateKeywordRule('Python3.11 数据分析', rule({ includeWords: ['Python'] }))).toEqual({
+    skip: false,
+  })
+})
+
+test('点分版本号：SpringBoot 命中「SpringBoot3.2 开发」', () => {
+  expect(evaluateKeywordRule('SpringBoot3.2 开发', rule({ includeWords: ['SpringBoot'] }))).toEqual(
+    { skip: false },
+  )
+})
+
+test('点分版本号排除方向：排除 Java 时「熟练掌握Java1.8」被拒绝（fail-closed）', () => {
+  expect(evaluateKeywordRule('熟练掌握Java1.8', rule({ excludeWords: ['Java'] }))).toEqual({
+    skip: true,
+    reason: 'excluded',
+    keyword: 'Java',
+  })
+})
+
+test('点分版本号对照：Java 不命中「JavaScript3.2」（词尾是字母段，整词不是版本后缀）', () => {
+  expect(evaluateKeywordRule('JavaScript3.2 开发', rule({ includeWords: ['Java'] }))).toEqual({
+    skip: true,
+    reason: 'missing',
+  })
+})
+
+test('点号接字母仍不算版本号：Vue 不命中「Vue.js 框架」（F-022 维持现状）', () => {
+  expect(evaluateKeywordRule('Vue.js 框架', rule({ includeWords: ['Vue'] }))).toEqual({
+    skip: true,
+    reason: 'missing',
+  })
+})
+
 test('排除词报告去除首尾空白：排除「 外包 」命中「外包项目」报告「外包」', () => {
   expect(evaluateKeywordRule('外包项目', rule({ excludeWords: [' 外包 '] }))).toEqual({
     skip: true,
@@ -568,5 +661,96 @@ test('岗位名称不做否定判断：未启用否定窗口时「无外包」�
 test('否定窗口与包含组并存：排除词被否定、包含词照常命中时放行', () => {
   expect(evalDesc('无外包，Java开发', { includeWords: ['Java'], excludeWords: ['外包'] })).toEqual({
     skip: false,
+  })
+})
+
+// ————————————————————————————————————————————————————————————————————————————
+// conf/migrate.ts 的读取路径（评审 F-023 / F-024）。这些测试放在本文件而非
+// conf/migrate.test.ts：该文件已达 oxlint max-lines（800）上限，且本 feature 的
+// owned paths 只含 keywordMatch.test.ts / migrate.test.ts 两个测试文件。
+// 期望值来自 defaultFormData（info.ts 默认形态）、匹配引擎的大小写语义与
+// F-023/F-024 复现语料（scrutiny-m1-keyword probe3/probe6）。
+// ————————————————————————————————————————————————————————————————————————————
+
+test('conf/migrate keywordConflictWords：比较忽略大小写（匹配引擎大小写不敏感，评审 F-023）', () => {
+  expect(
+    keywordConflictWords({
+      includeWords: ['Java'],
+      excludeWords: ['java'],
+      includeMode: 'any',
+    }),
+  ).toEqual(['java'])
+})
+
+test('conf/migrate keywordGroupEnabled：仅大小写不同的同词也判冲突，不能启用（评审 F-023）', () => {
+  const field = migrateKeywordGroups({
+    enable: true,
+    groups: { includeWords: ['Java'], excludeWords: ['java'], includeMode: 'any' },
+  })
+  expect(keywordConflictWords(field.groups)).toEqual(['java'])
+  expect(keywordGroupEnabled(field)).toBe(false)
+})
+
+test('conf/migrate migrateKeywordFields：null 的 jobTitle/jobContent/hrPosition 归一为默认关闭形态', () => {
+  const out = migrateKeywordFields({
+    jobTitle: null,
+    jobContent: null,
+    hrPosition: null,
+  } as Partial<FormData> & { jobTitle: null; jobContent: null; hrPosition: null })
+  expect(out.jobTitle).toEqual(defaultFormData.jobTitle)
+  expect(out.jobContent).toEqual(defaultFormData.jobContent)
+  expect(out.hrPosition).toEqual(defaultFormData.hrPosition)
+  expect(keywordGroupEnabled(out.jobTitle!)).toBe(false)
+  expect(keywordGroupEnabled(out.jobContent!)).toBe(false)
+})
+
+test('conf/migrate migrateKeywordFields：非对象（数字/数组）字段对象同样归一为默认形态', () => {
+  const out = migrateKeywordFields({
+    jobTitle: 42,
+    jobContent: ['外包'],
+  } as Partial<FormData> & { jobTitle: number; jobContent: string[] })
+  expect(out.jobTitle).toEqual(defaultFormData.jobTitle)
+  expect(out.jobContent).toEqual(defaultFormData.jobContent)
+})
+
+test('conf/migrate migrateKeywordFields：良构旧配置字段仍按 FR-006 迁移，不受归一影响', () => {
+  const out = migrateKeywordFields({
+    jobTitle: { include: true, value: ['Java'], options: [], enable: true },
+    hrPosition: { include: true, value: ['经理'], options: [], enable: true },
+  } as unknown as Partial<FormData>)
+  expect(out.jobTitle!.groups).toEqual({
+    includeWords: ['Java'],
+    excludeWords: [],
+    includeMode: 'any',
+  })
+  expect(out.hrPosition).toEqual({
+    include: true,
+    value: ['经理'],
+    options: [],
+    enable: true,
+  })
+})
+
+test('conf/migrate migrateKeywordFields：归一产物不与 defaultFormData 共享字段/词表引用（F-008 反转）', () => {
+  const out = migrateKeywordFields({ jobTitle: null } as Partial<FormData> & { jobTitle: null })
+  expect(out.jobTitle).not.toBe(defaultFormData.jobTitle)
+  expect((out.jobTitle! as { groups: unknown }).groups).not.toBe(defaultFormData.jobTitle.groups)
+  expect(out.hrPosition).toBeUndefined()
+})
+
+test('conf/migrate 读路径复现（probe6）：jobTitle=null 经 migrateFormData + deepmerge 后门控不抛 TypeError', async () => {
+  const migrate = await loadMigrateFormData()
+  const migrated = migrate({ version: '20240401', jobTitle: null }) as {
+    jobTitle: KeywordFieldLike
+  }
+  const merged = deepmerge(
+    jsonClone(defaultFormData),
+    JSON.parse(JSON.stringify(migrated)),
+  ) as unknown as { jobTitle: KeywordFieldLike }
+  expect(keywordGroupEnabled(merged.jobTitle)).toBe(false)
+  expect(merged.jobTitle.groups).toEqual({
+    includeWords: [],
+    excludeWords: [],
+    includeMode: 'any',
   })
 })

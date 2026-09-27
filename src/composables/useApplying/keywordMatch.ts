@@ -91,7 +91,8 @@ export type KeywordRuleOptions = {
 
 const TOKEN_CHAR = /[a-z0-9+#.]/
 const NON_TOKEN = /[^a-z0-9+#.]/
-const DIGITS = /^\d+$/
+/** 版本尾段（评审 F-021）：数字段加点，如 "3.2" / "1.8" / "14.17"；点后须仍是数字段。 */
+const VERSION_TAIL = /^\d+(\.\d+)*$/
 
 /**
  * t1 新关键词引擎的 token 化（带起点下标）：英文技术名词的完整词边界由
@@ -123,7 +124,8 @@ function tokenStarts(text: string): Array<{ word: string; start: number }> {
 
 /**
  * 关键词在已小写文本上的全部命中起点（全部固定字面量，用户输入不进正则）：
- * - 英文词 = 完整词命中，词后紧跟数字段视为版本号仍算命中，紧跟字母则不属于该词；
+ * - 英文词 = 完整词命中，词后紧跟数字段（含点分版本段，如 3.2 / 1.8 / 14.17）视为
+ *   版本号仍算命中（评审 F-021），紧跟字母或点后接字母则不属于该词；
  * - 其余（中文、混合中英、带 '/'- 等非 token 字符的词）= 忽略大小写的子串包含，
  *   逐处扫描以便否定窗口逐处判定。
  * FR-004：关键词后接「系统、软件、工具、服务」不再阻止命中（旧后缀屏蔽表移除）。
@@ -142,7 +144,7 @@ function wordHitsIn(t: string, word: string): number[] {
     .filter(
       (tok) =>
         tok.word === word ||
-        (tok.word.startsWith(word) && DIGITS.test(tok.word.slice(word.length))),
+        (tok.word.startsWith(word) && VERSION_TAIL.test(tok.word.slice(word.length))),
     )
     .map((tok) => tok.start)
 }

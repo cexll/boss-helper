@@ -3,6 +3,7 @@ import type { KeywordRule } from '@/composables/useApplying/keywordMatch'
 import { keywordIncludeModes } from '@/types/formData'
 import type {
   FormData,
+  FormDataSelect,
   JevConfig,
   KeywordFieldConfig,
   KeywordGroup,
@@ -68,11 +69,62 @@ export function migrateKeywordGroups(field: KeywordFieldLike): MigratedKeywordFi
   }
 }
 
-/** 只迁移存在的字段；其余输入（缺失/非对象）原样返回 undefined。 */
-function migrateKeywordField(field: unknown): KeywordFieldLike | undefined {
-  return field && typeof field === 'object'
-    ? migrateKeywordGroups(field as KeywordFieldLike)
-    : undefined
+/** 字段形状损坏：null / 非对象原始值 / 数组。undefined = 配置缺该字段，不算损坏。 */
+function corruptedKeywordField(value: unknown): boolean {
+  return (
+    value === null || (typeof value !== 'object' && value !== undefined) || Array.isArray(value)
+  )
+}
+
+/**
+ * 存量关键词字段的默认形态（与 info.ts 的 defaultFormData 对齐：jobTitle 白名单、
+ * jobContent 黑名单，一律关闭 + 空词表）。不可 import info.ts 复用：info.ts 反向 import
+ * 本模块的 emptyKeywordGroup，import/no-cycle 是 gate 红线的 lint 违规；此处按字段名
+ * 构造新对象/新数组，天然不与模块默认共享引用（对齐漂移由测试断言捕获）。
+ */
+function defaultKeywordFieldShape(key: 'jobTitle' | 'jobContent'): KeywordFieldConfig {
+  return {
+    include: key === 'jobTitle',
+    value: [],
+    options: [],
+    enable: false,
+    groups: emptyKeywordGroup(),
+  }
+}
+
+/** 存量 hrPosition 的默认形态（与 defaultFormData.hrPosition 对齐；单列表字段无关键词组）。 */
+function defaultHrPositionShape(): FormDataSelect {
+  return {
+    include: true,
+    value: [],
+    options: ['经理', '主管', '法人', '人力资源主管', 'hr', '招聘专员'],
+    enable: false,
+  }
+}
+
+/**
+ * FormData 迁移：只处理 jobTitle / jobContent / hrPosition 三个字段（其余字段不动）。
+ *
+ * 字段读取归一（评审 F-024，参照 fx-007 normalizeJevConfig 的读路径模式）：形状损坏
+ * （null / 非对象 / 数组）的存量字段对象不能原样放行——deepmerge 会把 null 原样覆盖
+ * 默认值，注册期 keywordGroupEnabled / keywordRuleOf 与处理器对 .enable / .groups 的
+ * 解引用会抛 TypeError，造成每单 error-skip（评审 probe6 复现）。
+ * 一律回退该字段默认形态。字段缺失（undefined）则原样跳过：deepmerge 按默认补齐，
+ * 缺失键不会覆盖默认形态。hrPosition 是单列表字段，不参与关键词组迁移：仅做损坏归一。
+ */
+export function migrateKeywordFields(from: Partial<FormData>): Partial<FormData> {
+  for (const key of ['jobTitle', 'jobContent'] as const) {
+    const stored = from[key]
+    if (corruptedKeywordField(stored)) {
+      from[key] = defaultKeywordFieldShape(key)
+    } else if (stored !== undefined) {
+      from[key] = migrateKeywordGroups(stored as KeywordFieldLike) as FormData[typeof key]
+    }
+  }
+  if (corruptedKeywordField(from.hrPosition)) {
+    from.hrPosition = defaultHrPositionShape()
+  }
+  return from
 }
 
 /** 取字段生效的关键词组：缺失/未迁移/形状损坏的 groups 原地按 FR-006 推导或归一。 */
@@ -105,22 +157,24 @@ export function keywordGroupEnabled(field: KeywordFieldLike): boolean {
 
 /**
  * 冲突词（FR-002）：同一个词同时出现在包含组与排除组。
- * 按 trim 后比较，报告 trim 后的词；顺序先包含组后排除组，便于 UI 提示（t4）。
+ * 按 trim 后、忽略大小写比较——匹配引擎对词做 toLowerCase 后求值，冲突判定必须与
+ * 引擎共用同一相等关系，否则 include[Java]+exclude[java] 能启用并静默排除全部命中
+ * （评审 F-023）；报告 trim 后的排除侧原词。顺序先包含组后排除组，便于 UI 提示（t4）。
  */
 export function keywordConflictWords(group: KeywordGroup): string[] {
-  const includeSet = new Set(group.includeWords.map((w) => w.trim()).filter(Boolean))
+  const includeSet = new Set(group.includeWords.map((w) => w.trim().toLowerCase()).filter(Boolean))
   const seen = new Set<string>()
   const conflicts: string[] = []
   for (const word of group.excludeWords) {
     const w = word.trim()
-    if (includeSet.has(w) && !seen.has(w)) {
-      seen.add(w)
+    const key = w.toLowerCase()
+    if (includeSet.has(key) && !seen.has(key)) {
+      seen.add(key)
       conflicts.push(w)
     }
   }
   return conflicts
 }
-
 /**
  * 存储损坏的 jev 值归一（评审 F-010）：null / 非对象 / 数组 / 缺字段一律回退
  * 默认关闭形态 {enable:false, targetDirection:''}；良构形状（boolean enable +
@@ -135,15 +189,4 @@ export function normalizeJevConfig(value: unknown): JevConfig {
   return typeof jev.enable === 'boolean' && typeof jev.targetDirection === 'string'
     ? { enable: jev.enable, targetDirection: jev.targetDirection }
     : { enable: false, targetDirection: '' }
-}
-
-/** FormData 迁移：只处理 jobTitle / jobContent 两个关键词字段（其余字段不动）。 */
-export function migrateKeywordFields(from: Partial<FormData>): Partial<FormData> {
-  for (const key of ['jobTitle', 'jobContent'] as const) {
-    const migrated = migrateKeywordField(from[key])
-    if (migrated) {
-      from[key] = migrated as FormData[typeof key]
-    }
-  }
-  return from
 }
