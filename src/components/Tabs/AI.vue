@@ -56,6 +56,12 @@ async function saveApiKey() {
   await counter.storageSet(JEV_API_KEY_STORAGE_KEY, apiKey.value)
 }
 
+/** 评审 F-009：目标方向属于 FormData，随配置落盘；失焦即保存，与密钥输入框失焦提交同模式，
+ *  否则 AI 页内的编辑只会停留在内存里，重载后静默回退。 */
+function saveTargetDirection() {
+  conf.confSaving()
+}
+
 onMounted(async () => {
   const stored = await counter.storageGet<string>(JEV_API_KEY_STORAGE_KEY)
   if (typeof stored === 'string') apiKey.value = stored
@@ -178,6 +184,7 @@ async function confirmJevEnable() {
           autoresize
           placeholder="例：只投递以前端开发为主要职责的岗位"
           class="w-full"
+          @blur="saveTargetDirection"
         />
         <p class="text-xs text-gray-400">
           Jev 以这段描述判断岗位方向；修改后已缓存的结果会失效并重新判断

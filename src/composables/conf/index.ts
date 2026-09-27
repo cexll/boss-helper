@@ -9,7 +9,7 @@ import { exportJson, importJson } from '@/utils/jsonImportExport'
 import { logger } from '@/utils/logger'
 
 import { defaultFormData } from './info'
-import { migrateKeywordFields } from './migrate'
+import { migrateKeywordFields, normalizeJevConfig } from './migrate'
 
 export * from './info'
 
@@ -34,7 +34,7 @@ export const appearanceConf = useStorageAsync(
   { mergeDefaults: true },
 )
 const isLoading = ref(true)
-const formData: FormData = reactive(defaultFormData)
+const formData: FormData = reactive(jsonClone(defaultFormData))
 const formDataPreset = ref('default')
 const formDataPresets = ref([
   {
@@ -148,6 +148,9 @@ export function migrateFormData(from: Partial<FormData>): Partial<FormData> {
     from = fn(from)
     from.version = version
   }
+  // 评审 F-010：损坏的 jev 值（null/非对象/缺字段）在读取路径归一为默认关闭形态，
+  // AI 标签页的 computed 解引用（.enable/.targetDirection）不再可能拿到会抛错的形状。
+  from.jev = normalizeJevConfig(from.jev)
   return from
 }
 
@@ -173,7 +176,10 @@ export const useConf = () => {
    */
   async function readStoredFormData(): Promise<FormData> {
     const from = await counter.storageGet<Partial<FormData>>(formDataKey(), {})
-    return deepmerge<FormData>(defaultFormData, await formDataHandler(from))
+    // 评审 F-008：deepmerge 在 target 上做浅拷贝、对 stored 缺失的键保留 target 的
+    // 子对象引用；先深拷贝默认值，会话内对 formData 的编辑才写不进模块默认对象，
+    // 存量配置（无 jev 键）也不会经由别名化的 defaultFormData 复活出启用状态。
+    return deepmerge<FormData>(jsonClone(defaultFormData), await formDataHandler(from))
   }
   async function init() {
     isLoading.value = true

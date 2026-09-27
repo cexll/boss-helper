@@ -3,6 +3,7 @@ import type { KeywordRule } from '@/composables/useApplying/keywordMatch'
 import { keywordIncludeModes } from '@/types/formData'
 import type {
   FormData,
+  JevConfig,
   KeywordFieldConfig,
   KeywordGroup,
   KeywordIncludeMode,
@@ -118,6 +119,22 @@ export function keywordConflictWords(group: KeywordGroup): string[] {
     }
   }
   return conflicts
+}
+
+/**
+ * 存储损坏的 jev 值归一（评审 F-010）：null / 非对象 / 数组 / 缺字段一律回退
+ * 默认关闭形态 {enable:false, targetDirection:''}；良构形状（boolean enable +
+ * string targetDirection）原样保留（含「未启用但已填方向」的用户选择）。
+ * 纯函数：不碰 Vue / 存储，可在 bun test 下逐条验证。
+ */
+export function normalizeJevConfig(value: unknown): JevConfig {
+  if (typeof value !== 'object' || value === null || Array.isArray(value)) {
+    return { enable: false, targetDirection: '' }
+  }
+  const jev = value as Record<string, unknown>
+  return typeof jev.enable === 'boolean' && typeof jev.targetDirection === 'string'
+    ? { enable: jev.enable, targetDirection: jev.targetDirection }
+    : { enable: false, targetDirection: '' }
 }
 
 /** FormData 迁移：只处理 jobTitle / jobContent 两个关键词字段（其余字段不动）。 */
