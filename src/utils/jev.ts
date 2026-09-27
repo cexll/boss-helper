@@ -313,7 +313,7 @@ function detailMessage(detail: object): string {
  * 后台侧 `registerJevBackgroundHandler` 校验载荷后在 service worker
  * 上下文发起请求，返回 {@link JevOutcome}（可结构化克隆）。
  */
-export const JEV_ASK_MESSAGE = 'jev:ask'
+export const JEV_ASK_MESSAGE = 'jev:ask' as const
 
 /** 后台侧注入的密钥读取依赖：p1 §3.3 显示缺失密钥是服务端 403，绝不明文发请求 */
 export interface JevBackgroundDeps {

@@ -660,3 +660,130 @@ test('后台入口接线：起用即注册 Jev 监听，收到消息后用存储
     globalThis.fetch = globalFetch
   }
 })
+
+/**
+ * F-028 页面运输半边：ContentCounter.askJevBackground 中继（MAIN world 没有
+ * browser.runtime，页面经 comctx 调 ContentCounter，content script 世界转后台）。
+ */
+test('FR-028：ContentCounter.askJevBackground 把 jev:ask 消息原样转给扩展后台并回传应答', async () => {
+  const sent: Array<Record<string, unknown>> = []
+  void mock.module('#imports', () => ({
+    browser: {
+      runtime: {
+        sendMessage: async (message: Record<string, unknown>) => {
+          sent.push(message)
+          return { status: 'decided', model: 'jev-1.13.0', noul: 0.9 }
+        },
+      },
+    },
+    storage: { getItem: async () => null },
+  }))
+
+  const { ContentCounter } = await import('@/message/contentScript')
+  const counter = new ContentCounter({} as never)
+  const message = {
+    type: JEV_ASK_MESSAGE,
+    payload: buildJevRequestBody(job, question),
+  }
+
+  const outcome = await counter.askJevBackground(message)
+
+  expect(sent).toHaveLength(1)
+  expect(sent[0]).toEqual(message)
+  expect(Object.keys(sent[0]!).sort()).toEqual(['payload', 'type'])
+  expect(outcome).toEqual({ status: 'decided', model: 'jev-1.13.0', noul: 0.9 })
+})
+
+test('FR-028：中继转出的页面消息不含密钥与端点；后台无应答时返回 undefined（fail-closed）', async () => {
+  const sent: Array<Record<string, unknown>> = []
+  void mock.module('#imports', () => ({
+    browser: {
+      runtime: {
+        sendMessage: async (message: Record<string, unknown>) => {
+          sent.push(message)
+          return undefined
+        },
+      },
+    },
+    storage: { getItem: async () => null },
+  }))
+
+  const { ContentCounter } = await import('@/message/contentScript')
+  const counter = new ContentCounter({} as never)
+  const outcome = await counter.askJevBackground({
+    type: JEV_ASK_MESSAGE,
+    payload: buildJevRequestBody(job, question),
+  })
+
+  expect(outcome).toBeUndefined()
+  const wire = JSON.stringify(sent[0])
+  expect(wire).not.toContain('Authorization')
+  expect(wire).not.toContain('Bearer')
+  expect(wire).not.toContain(JEV_BASE_URL)
+})
+
+test('ContentCounter：既有委托面（request/fetch/storage/路由hook/contentScriptTest）按原样转发', async () => {
+  const calls: Array<{ method: string; args: unknown[] }> = []
+  const background = new Proxy({} as Record<string, unknown>, {
+    get(_, prop: string) {
+      return async (...args: unknown[]) => {
+        calls.push({ method: prop, args })
+        return prop === 'getImage' ? { success: false } : 'ok'
+      }
+    },
+  })
+  const store = new Map<string, unknown>()
+  void mock.module('#imports', () => ({
+    browser: { runtime: { sendMessage: async () => undefined } },
+    storage: {
+      getItem: async (key: string, opt?: { fallback?: unknown }) =>
+        store.has(key) ? store.get(key) : (opt?.fallback ?? null),
+      setItem: async (key: string, value: unknown) => void store.set(key, value),
+      removeItem: async (key: string) => void store.delete(key),
+    },
+  }))
+
+  const { ContentCounter } = await import('@/message/contentScript')
+  const counter = new ContentCounter(background as never)
+
+  await counter.request({ url: 'https://zhipin.com/x' } as never)
+  await counter.notify({ title: 't', message: 'm' } as never)
+  await counter.backgroundTest('success')
+  await counter.fetch('https://zhipin.com/x')
+  await counter.getImage('local:img')
+  await counter.setImage({ key: 'local:img', data: 'd' } as never)
+  expect(calls.map((c) => c.method)).toEqual([
+    'request',
+    'notify',
+    'backgroundTest',
+    'fetch',
+    'getImage',
+    'setImage',
+  ])
+
+  await counter.storageSet('local:jev-api-key', 'k-stored')
+  expect(await counter.storageGet<string>('local:jev-api-key')).toBe('k-stored')
+  expect(await counter.storageGet('missing', 'fallback')).toBe('fallback')
+  await counter.storageRm('local:jev-api-key')
+  expect(await counter.storageGet('local:jev-api-key')).toBeNull()
+  await counter.storageSet('plain-key', 1)
+  expect(store.has('sync:plain-key')).toBe(true)
+
+  const seen: string[] = []
+  counter._addRouterHook((path) => {
+    seen.push(path)
+    throw new Error('hook boom')
+  })
+  counter._addRouterHook((path) => seen.push(`${path}-second`))
+  await counter.callRouterHooks('/recommend')
+  expect(seen).toEqual(['/recommend', '/recommend-second'])
+
+  expect(typeof (await counter.contentScriptTest('success'))).toBe('number')
+  let rejected = ''
+  try {
+    await counter.contentScriptTest('error')
+  } catch (error) {
+    rejected = (error as Error).message
+  }
+  expect(rejected).toContain('test error date:')
+})

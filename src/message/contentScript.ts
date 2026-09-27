@@ -1,5 +1,7 @@
 import type { StorageItemKey } from '#imports'
-import { storage } from '#imports'
+import { browser, storage } from '#imports'
+import type { JevRequestBody } from '@/utils/jev'
+import type { JEV_ASK_MESSAGE } from '@/utils/jev'
 
 import type { BackgroundCounter } from './background'
 export { ProvideContentAdapter } from './contentScriptShare'
@@ -52,6 +54,15 @@ export class ContentCounter implements BackgroundCounter {
   }
   async setImage(...args: Parameters<BackgroundCounter['setImage']>) {
     return this.background.setImage(...args)
+  }
+
+  /**
+   * F-028：页面（MAIN world）无法直连 Jev 时，经 content script 把 `jev:ask` 消息
+   * 转给扩展后台代发（FR-017）。载荷只含岗位标题/描述问题结构（t5 协议），
+   * 密钥留在后台存储里，不经这条页面消息、不进日志。
+   */
+  async askJevBackground(message: { type: typeof JEV_ASK_MESSAGE; payload: JevRequestBody }) {
+    return browser.runtime.sendMessage(message)
   }
 
   async storageGet<T>(key: string, defaultValue: T): Promise<T>

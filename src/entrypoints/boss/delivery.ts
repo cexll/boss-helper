@@ -3,8 +3,9 @@ import type { JevAskFn, JevStageHandoff } from '@/composables/useApplying/jevDir
 import { createJevStageHandoff } from '@/composables/useApplying/jevDirection'
 import { defineTaskHandler, defineTaskWorkflow } from '@/composables/useApplying/type'
 import { counter } from '@/message'
+import type { ContentCounter } from '@/message/contentScript'
 import type { JevKeyReader } from '@/utils/jev'
-import { askJev as askJevClient, JEV_API_KEY_STORAGE_KEY } from '@/utils/jev'
+import { askJevWithFallback, createJevBackgroundSender, JEV_API_KEY_STORAGE_KEY } from '@/utils/jev'
 
 import { getBossData, sendPublishReq } from './requests'
 import type { BossHelperCtx } from './runtime'
@@ -35,12 +36,19 @@ const getJevApiKey: JevKeyReader = async () => {
 }
 
 /**
- * t5 页面侧客户端（askJev）：单次尝试、单次超时（t5 JEV_TIMEOUT_MS，p1 §6.1），
- * 密钥由注入的读取器供给。页面上下文不可达时的 error outcome 由 jevDirection
- * 收敛为待复核（AC-012：如实说明，不引入其他模型或中转）。
+ * F-028：页面（MAIN world）直连 api.typesafe.ai 会被跨域拦（p1 §2.1/§2.2 实测），
+ * 故流水线的 Jev 调用走 `askJevWithFallback`：页面直连优先，仅在传输/跨域不可达时
+ * 经 content script 中继（ContentCounter.askJevBackground）转扩展后台代发（FR-017）。
+ * 两条路径都不可达 → error outcome，由 jevDirection 收敛为待复核 jev_error（fail-closed）。
+ * 密钥：页面侧读取只为直连；后台自己从存储取密钥，页面消息里不带密钥。
  */
-const askJev: JevAskFn = (job, question, getApiKey) =>
-  askJevClient(job, question, { getApiKey: getApiKey ?? getJevApiKey })
+export const askJev: JevAskFn = (job, question, getApiKey) =>
+  askJevWithFallback(job, question, {
+    getApiKey: getApiKey ?? getJevApiKey,
+    viaBackground: createJevBackgroundSender((message) =>
+      counter.askJevBackground(message as Parameters<ContentCounter['askJevBackground']>[0]),
+    ),
+  })
 
 export const bossWorkflow = defineTaskWorkflow<BossHelperCtx, BoosJobData>(
   defineTaskHandler(
