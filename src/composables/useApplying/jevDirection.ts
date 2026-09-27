@@ -13,11 +13,19 @@
  *
  * 交接（handoff）：标题含糊且当前没有描述时，判定不在这里终结——由流水线的「岗位详情获取 +
  * 职位描述关键词」步骤之后再次调用本模块（stage='recheck'）完成复判。交接标记由调用方持有
- * （delivery.ts 每次构建流水线时创建一次），本模块不保存任何跨调用状态。
+ * （delivery.ts 每次构建流水线时创建一次）。
+ *
+ * 结果缓存（t9 / FR-015）：明确终判（pass / confirmed-negative）按「岗位 + 判定依据」缓存，
+ * 判定依据 = 目标方向描述 + Jev 模型标识（响应里的具体版本，p1 §3.2）。命中缓存在 askJev
+ * 之前直接复用，后续流水线步骤与新鲜终判一致；待复核（不确定 / 超时 / 报错）绝不写缓存
+ * （FR-013）。缓存实现与键语义在 jevCache.ts，本模块只做查 / 写，实例经 deps.cache 注入，
+ * 缺省用会话级单例（随投递运行生命周期）。
  */
 
 import type { JevJobInput, JevKeyReader, JevNoulQuestion, JevOutcome } from '@/utils/jev'
 
+import { jevCache } from './jevCache'
+import type { JevCache, JevCachedDecision } from './jevCache'
 import type {
   ReviewNeededCounter,
   ReviewNeededReasonKind,
@@ -85,6 +93,11 @@ export interface JevDirectionDeps {
   /** t6 / fx-006：当日去重键（getCurDay() 口径），注入保持本模块无时钟依赖 */
   getToday: () => string
   getApiKey?: JevKeyReader
+  /**
+   * t9：明确结果缓存（判定依据 = 目标方向 + Jev 模型标识）。缺省用 jevCache 会话级单例；
+   * 注入用于单测隔离。命中缓存时不再请求 Jev，流水线后续步骤与新鲜终判一致。
+   */
+  cache?: JevCache
   handoff?: JevStageHandoff
 }
 
@@ -144,10 +157,40 @@ function asReviewNeeded(
   return recordAndReturn(job, deps, outcome.reason, kind)
 }
 
+/** t9：取缓存实例（缺省会话级单例），供查 / 写两处使用 */
+function cacheOf(deps: JevDirectionDeps): JevCache {
+  return deps.cache ?? jevCache
+}
+
+/**
+ * t9：decided outcome → 明确终判并写缓存；含糊返回 null（绝不写缓存，FR-013）。
+ * 判定依据 = job.key + 目标方向 + 响应模型标识（p1 §3.2 具体版本），model 变化即整库失效。
+ */
+function definitiveVerdict(
+  job: JevDirectionJob,
+  deps: JevDirectionDeps,
+  outcome: Extract<JevOutcome, { status: 'decided' }>,
+  direction: string,
+  label: '标题' | '复判',
+): JevCachedDecision | null {
+  const band = bandOf(outcome.noul)
+  if (band === 'uncertain') return null
+  const verdict: JevCachedDecision =
+    band === 'yes'
+      ? { decision: 'pass' }
+      : {
+          decision: 'skip',
+          reason: `Jev 判定岗位与目标方向不相关（${label} noul=${outcome.noul}）`,
+        }
+  cacheOf(deps).set(job.key, direction, outcome.model, verdict)
+  return verdict
+}
+
 /** 标题+描述复判：决定 pass / skip / 待复核（含糊即待复核，没有第三次判断） */
 async function recheckWithDescription(
   job: JevDirectionJob,
   deps: JevDirectionDeps,
+  direction: string,
 ): Promise<JevDirectionDecision> {
   const description = job.jobDescription?.trim()
   if (!description) {
@@ -156,17 +199,16 @@ async function recheckWithDescription(
   }
   const outcome = await deps.askJev(
     { title: job.jobName, description },
-    questionOf(deps.getTargetDirection() ?? ''),
+    questionOf(direction),
     deps.getApiKey,
   )
   if (outcome.status !== 'decided') {
     return asReviewNeeded(job, deps, outcome)
   }
-  const band = bandOf(outcome.noul)
-  if (band === 'yes') return { decision: 'pass' }
-  if (band === 'no') {
-    return { decision: 'skip', reason: `Jev 判定岗位与目标方向不相关（复判 noul=${outcome.noul}）` }
-  }
+  // t9：复判的明确终判同样按「岗位 + 判定依据」写缓存（判定依据不含阶段），
+  // 下次扫到该岗位时标题阶段直接命中，零请求复现同一条终判（AC-009）
+  const verdict = definitiveVerdict(job, deps, outcome, direction, '复判')
+  if (verdict) return verdict
   return recordAndReturn(job, deps, `复判仍无法确定方向（noul=${outcome.noul}）`, 'jev_uncertain')
 }
 
@@ -182,7 +224,7 @@ export async function judgeJevDirection(
     if (!deps.handoff?.takePending(job.key)) {
       return { decision: 'pass' }
     }
-    return recheckWithDescription(job, deps)
+    return recheckWithDescription(job, deps, deps.getTargetDirection()?.trim() ?? '')
   }
   // 上一轮留下的复判标记先消费掉：标题本轮自己会给出新的结论，
   // 残留标记（上轮含糊、这轮已定论）会让详情阶段再发一次无谓的复判请求
@@ -194,20 +236,37 @@ export async function judgeJevDirection(
     return { decision: 'pass' }
   }
 
+  // t9 / AC-009：同岗位同判定依据命中缓存 → 直接复用明确终判，不再请求 Jev；
+  // 命中 pass 与新鲜 pass 一样继续流水线（取详情、AI 筛选），
+  // 命中 confirmed-negative 与新鲜 skip 一样终止流水线（不取详情、不调 AI）
+  const cached = cacheOf(deps).get(job.key, direction)
+  if (cached) {
+    return cached
+  }
+
   const outcome = await deps.askJev({ title: job.jobName }, questionOf(direction), deps.getApiKey)
   if (outcome.status !== 'decided') {
     return asReviewNeeded(job, deps, outcome)
   }
-  const band = bandOf(outcome.noul!)
-  if (band === 'yes') return { decision: 'pass' }
-  if (band === 'no') {
-    return { decision: 'skip', reason: `Jev 判定岗位与目标方向不相关（标题 noul=${outcome.noul}）` }
+  const verdict = definitiveVerdict(job, deps, outcome, direction, '标题')
+  if (verdict) {
+    return verdict
   }
+  // 含糊：交回收尾逻辑（有描述则复判，否则交接详情阶段或待复核）
+  return uncertainAfterTitle(job, deps, direction)
+}
 
-  // 含糊：能拿到描述就直接复判；拿不到则交给流水线的详情复判阶段（FR-012），
-  // 没有交接（单次调用上下文）时按「无描述可复判」进待复核（fail-closed）。
+/**
+ * 标题含糊的收尾：能拿到描述就直接复判；拿不到则交给流水线的详情复判阶段（FR-012），
+ * 没有交接（单次调用上下文）时按「无描述可复判」进待复核（fail-closed）。
+ */
+async function uncertainAfterTitle(
+  job: JevDirectionJob,
+  deps: JevDirectionDeps,
+  direction: string,
+): Promise<JevDirectionDecision> {
   if (job.jobDescription?.trim()) {
-    return recheckWithDescription(job, deps)
+    return recheckWithDescription(job, deps, direction)
   }
   if (deps.handoff) {
     deps.handoff.markPending(job.key)

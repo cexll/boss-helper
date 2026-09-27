@@ -1,9 +1,15 @@
-import { describe, expect, mock, test } from 'bun:test'
+import { beforeEach, describe, expect, mock, test } from 'bun:test'
 
+import { createJevCache, jevCache } from './jevCache'
+import type { JevCache } from './jevCache'
 import { JEV_UNCERTAIN_BAND, createJevStageHandoff, judgeJevDirection } from './jevDirection'
 import type { JevAskFn, JevDirectionDeps, JevDirectionJob, JevStage } from './jevDirection'
 import type { ReviewNeededReasonKind } from './reviewNeeded'
 
+// t9 单测卫生：流水线测试走 jevDirection 的会话级单例缓存，测试间必须清空（页面刷新语义）
+beforeEach(() => {
+  jevCache.clear()
+})
 /**
  * 判定口径来自 p1 实测记录 docs/probes/jev-p1-record.md：
  * - §5 标定：明确样本 ≤0.07 / ≥0.96；含糊样本（全栈对半）0.25；标题说「否」、描述说「是」
@@ -47,6 +53,8 @@ interface DepsOverride {
   handoff?: JevDirectionDeps['handoff']
   getApiKey?: JevDirectionDeps['getApiKey']
   statistics?: unknown
+  /** t9：注入缓存实例；缺省为每个 deps 一块独立缓存，测试间不串台 */
+  cache?: JevCache
 }
 
 function makeDeps(
@@ -62,6 +70,7 @@ function makeDeps(
     statistics: (over.statistics ?? freshStatistics()) as JevDirectionDeps['statistics'],
     getToday: () => TODAY,
     getApiKey: over.getApiKey,
+    cache: over.cache ?? createJevCache(),
     handoff: over.handoff,
   }
 }
@@ -397,7 +406,6 @@ describe('记账契约（t6 / fx-006：{today} 当日去重入参）', () => {
   })
 })
 
-// ————————————————————————————————————————————————————————————————————————————
 // 流水线接线（t8）：真实 TaskRegistry 处理器 + 真实 useDeliveryWorkflow 执行语义
 //（VAL-010 / AC-007：硬条件排除零 Jev 请求；标题判不相关不取详情、不调 AI 筛选；
 //  复判不确定进待复核。bun test 断言请求次数。）
@@ -713,5 +721,46 @@ describe('delivery 流水线顺序（FR-012/FR-016：硬条件 → Jev 标题 �
     expect(ids.indexOf('Jev方向判断')).toBeLessThan(ids.indexOf('岗位详情获取')) // 标题判不相关时不取详情
     expect(ids.indexOf('工作内容')).toBeLessThan(ids.indexOf('Jev方向复判')) // 描述关键词先于复判
     expect(ids.indexOf('Jev方向复判')).toBeLessThan(ids.indexOf('AI筛选')) // Jev 在 AI 筛选之前
+  })
+})
+
+describe('流水线缓存（t9 / AC-009 / FR-018：命中缓存与新鲜终判流水线效果一致）', () => {
+  test('(d) confirmed-negative 命中缓存：零 Jev 请求、不取详情、不调 AI（与新鲜 skip 同效）', async () => {
+    // 第一轮：标题确认不相关（0.02 ≤ 0.2）→ skip，不取详情（基线行为）
+    const first = await runPipeline({ jobName: '数据标注员' }, [
+      { status: 'decided', model: 'jev-1.13.0', noul: 0.02 },
+    ])
+    expect(first.seq).toEqual(['jev'])
+    expect(first.jevCalls).toEqual([{ title: '数据标注员' }])
+
+    // 第二轮：同岗位同判定依据 → 缓存命中，零请求、零详情、零 AI
+    const second = await runPipeline({ jobName: '数据标注员' }, [])
+    expect(second.seq).toEqual([])
+    expect(second.jevCalls).toEqual([])
+    expect(second.statistics.reviewNeeded).toBe(0)
+  })
+
+  test('pass 命中缓存：零 Jev 请求，照常取详情并进 AI 筛选（与新鲜 pass 同效）', async () => {
+    const first = await runPipeline({ jobName: '前端开发工程师', fillDescription: true }, [
+      { status: 'decided', model: 'jev-1.13.0', noul: 0.97 },
+    ])
+    expect(first.seq).toEqual(['jev', 'detail', 'ai'])
+
+    const second = await runPipeline({ jobName: '前端开发工程师', fillDescription: true }, [])
+    expect(second.seq).toEqual(['detail', 'ai']) // 标题阶段命中 pass，后续步骤照常
+    expect(second.jevCalls).toEqual([])
+  })
+
+  test('复判的明确结果入缓存：第二轮从标题阶段起零请求且后续效果一致（AC-009 端到端）', async () => {
+    const first = await runPipeline({ jobName: '全栈工程师', fillDescription: true }, [
+      { status: 'decided', model: 'jev-1.13.0', noul: 0.25 },
+      { status: 'decided', model: 'jev-1.13.0', noul: 0.89 },
+    ])
+    expect(first.seq).toEqual(['jev', 'detail', 'jev', 'ai'])
+
+    const second = await runPipeline({ jobName: '全栈工程师', fillDescription: true }, [])
+    expect(second.seq).toEqual(['detail', 'ai'])
+    expect(second.jevCalls).toEqual([])
+    expect(second.statistics.reviewNeeded).toBe(0)
   })
 })
