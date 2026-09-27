@@ -935,6 +935,116 @@
         "milestone": "acceptance"
       },
       "origin": "amend"
+    },
+    {
+      "dependsOn": ["t4"],
+      "touches": [
+        "src/composables/useApplying/keywordMatch.ts",
+        "src/composables/useApplying/keywordMatch.test.ts",
+        "src/composables/conf/migrate.ts",
+        "src/composables/conf/migrate.test.ts"
+      ],
+      "fulfills": [],
+      "expectedBehavior": [
+        "F-021：版本尾段允许数字段加点（/^\\d+(\\.\\d+)*$/）——Vue3.2/Java1.8/Node14.17/Python3.11/SpringBoot3.2 命中，javascript 对照仍不命中，vue.js 维持不命中（F-022 维持现状，规格未定义）",
+        "F-023：keywordConflictWords 大小写归一后再判冲突——include[Java]+exclude[java] 判冲突不能启用",
+        "F-024：存量字段对象为 null/非对象时归一为默认形态，注册不抛 TypeError"
+      ],
+      "addressesItemId": [],
+      "id": "fx-008",
+      "description": "scrutiny-m1 F-021/F-023/F-024：点号版本号命中、冲突词大小写归一、损坏字段对象归一",
+      "milestone": "m1-keyword",
+      "skillName": "tdd",
+      "verification": {
+        "mode": "steps",
+        "steps": [
+          {
+            "id": "check",
+            "command": "bun test ./src/composables/useApplying ./src/composables/conf",
+            "expectedExit": "zero"
+          }
+        ]
+      },
+      "cause": {
+        "kind": "review",
+        "reviewId": "scrutiny-m1-keyword",
+        "milestone": "m1-keyword"
+      },
+      "origin": "amend"
+    },
+    {
+      "dependsOn": ["t8", "t10"],
+      "touches": [
+        "src/entrypoints/boss/delivery.ts",
+        "src/entrypoints/boss/runtime.ts",
+        "src/utils/jev.ts",
+        "src/utils/jev.test.ts"
+      ],
+      "fulfills": [],
+      "expectedBehavior": [
+        "F-028：delivery.ts 的 Jev 调用使用 askJevWithFallback（页面直连失败→扩展后台转发），不再直接用 askJev",
+        "后台转发路径由 t5 已建：background.ts:18-23 监听 jev:ask，createJevBackgroundSender 转发",
+        "页面直连成功时仍走直连（优先）；直连失败（CORS/网络）时后台兜底；两者皆不可达→待复核 jev_error",
+        "不得新增真实投递、不得触碰登录态以外的 zhipin 页面"
+      ],
+      "addressesItemId": [],
+      "id": "fx-009",
+      "description": "scrutiny-m2 F-028：流水线 Jev 调用改走 t5 后台 fallback（页面直连 CORS 被拦，当前必落待复核）",
+      "milestone": "m2-jev-followup",
+      "skillName": "tdd",
+      "verification": {
+        "mode": "steps",
+        "steps": [
+          {
+            "id": "check",
+            "command": "bun test ./src",
+            "expectedExit": "zero"
+          }
+        ]
+      },
+      "cause": {
+        "kind": "review",
+        "reviewId": "scrutiny-m2-jev",
+        "milestone": "m2-jev"
+      },
+      "origin": "amend"
+    },
+    {
+      "dependsOn": ["t10"],
+      "touches": [
+        "src/composables/useApplying/jevDirection.ts",
+        "src/composables/useApplying/jevDirection.test.ts",
+        "src/composables/useApplying/handles.ts",
+        "src/components/Tabs/AI.vue"
+      ],
+      "fulfills": [],
+      "expectedBehavior": [
+        "F-029：jev.enable=true 且 targetDirection 为空（用户可达的持久态）→ 岗位进入待复核 missing_field（FR-013 缺字段），不再静默零请求放行",
+        "t7-F-017：AI.vue 目标方向失焦落盘时重断言 canEnableJev——清空方向后 enable 落盘为 false，不残留 {enable:true,targetDirection:''}",
+        "F-025：handles.ts 缺字段 recordReviewNeeded 调用补 {today:getCurDay()} 当日去重，与 fx-006 语义一致",
+        "既有 t8 测试中断言「空方向→pass 零请求」的用例同步改为断言待复核"
+      ],
+      "addressesItemId": [],
+      "id": "fx-010",
+      "description": "scrutiny-m2 F-029/F-025 + t7-F-017：启用但方向为空→待复核 missing_field（FR-013），AI.vue 失焦重断言门，缺字段记账补当日去重",
+      "milestone": "m2-jev-followup",
+      "skillName": "tdd",
+      "verification": {
+        "mode": "steps",
+        "steps": [
+          {
+            "id": "check",
+            "command": "bun test ./src",
+            "expectedExit": "zero"
+          }
+        ]
+      },
+      "cause": {
+        "kind": "review",
+        "reviewId": "scrutiny-m2-jev",
+        "milestone": "m2-jev"
+      },
+      "origin": "amend"
     }
   ]
 }
