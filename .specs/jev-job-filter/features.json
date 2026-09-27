@@ -1045,6 +1045,43 @@
         "milestone": "m2-jev"
       },
       "origin": "amend"
+    },
+    {
+      "dependsOn": ["t8", "t10"],
+      "touches": [
+        "src/entrypoints/boss/delivery.ts",
+        "src/entrypoints/boss/runtime.ts",
+        "src/utils/jev.ts",
+        "src/utils/jev.test.ts",
+        "src/message/contentScript.ts"
+      ],
+      "fulfills": [],
+      "expectedBehavior": [
+        "ContentCounter 新增 askJevBackground(message) 中继（content-script 侧 browser.runtime.sendMessage 转发，密钥经 content 层转 runtime，不进页面消息、不进日志）",
+        "delivery.ts 的 Jev 调用改为 askJevWithFallback：页面直连失败→后台转发；两者皆不可达→待复核 jev_error（fail-closed）",
+        "页面直连成功行为不变（既有测试锁住直连优先）"
+      ],
+      "addressesItemId": [],
+      "id": "fx-009b",
+      "description": "scrutiny-m2 F-028：流水线 Jev 改走后台 fallback（含 ContentCounter 中继半边）",
+      "milestone": "m2-jev-followup",
+      "skillName": "tdd",
+      "verification": {
+        "mode": "steps",
+        "steps": [
+          {
+            "id": "check",
+            "command": "bun test ./src",
+            "expectedExit": "zero"
+          }
+        ]
+      },
+      "cause": {
+        "kind": "review",
+        "reviewId": "scrutiny-m2-jev",
+        "milestone": "m2-jev"
+      },
+      "origin": "amend"
     }
   ]
 }
