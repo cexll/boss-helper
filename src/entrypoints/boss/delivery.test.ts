@@ -1,9 +1,9 @@
 import { afterEach, beforeEach, expect, mock, test } from 'bun:test'
 
-import { createJevCache } from '@/composables/useApplying/jevCache';
-import type { JevCache } from '@/composables/useApplying/jevCache';
-import { judgeJevDirection } from '@/composables/useApplying/jevDirection';
-import type { JevDirectionJob } from '@/composables/useApplying/jevDirection';
+import { createJevCache } from '@/composables/useApplying/jevCache'
+import type { JevCache } from '@/composables/useApplying/jevCache'
+import { judgeJevDirection } from '@/composables/useApplying/jevDirection'
+import type { JevDirectionJob } from '@/composables/useApplying/jevDirection'
 import { JEV_API_KEY_STORAGE_KEY, JEV_ASK_MESSAGE } from '@/utils/jev'
 
 /**
