@@ -8,8 +8,17 @@
  * - 再次扫到该岗位时重新判断（不在列表中即可重新进入）。
  *
  * 本模块是纯状态实现，不依赖 Vue / DOM / 存储 / 日志，可在 bun test 下逐条验证上述不变量。
- * t10（重试 / 跳过 / 人工确认方向）在不改变条目结构的前提下扩展动作。
+ * t10（重试 / 跳过 / 人工确认方向）在不改变条目结构的前提下扩展动作：
+ * - 重试：移出列表并撤销该「岗位 + 当前方向」的人工确认（FR-014 / AC-008 后半）——
+ *   待复核结果从不写缓存（FR-013），撤销确认后下一次扫到必然重新请求 Jev；
+ * - 跳过：只移出列表（不记排除、不动缓存与确认记录、统计不回退，t6 语义）；
+ * - 人工确认方向：持久记录随 Jev 缓存同键同失效（jevCache.ts 的确认 store），确认后
+ *   方向阶段零请求放行；确认只对当前岗位与当前判定依据有效，硬条件照常执行（AC-010）。
+ * 动作依赖列表宿主与判定缓存的注入面（缺省会话单例），保持本模块可独立验证。
  */
+
+import type { JevCache } from './jevCache'
+import { jevCache, jevConfirmations } from './jevCache'
 
 /** 进入待复核的原因分类；仅用于展示与后续动作分流，不参与缓存键。 */
 export type ReviewNeededReasonKind = 'jev_error' | 'jev_timeout' | 'jev_uncertain' | 'missing_field'
@@ -181,3 +190,77 @@ export function recordReviewNeeded(
  * 永不持久化，因此不存在跨页面残留，也不与任何排除缓存产生交集。
  */
 export const reviewNeededStore = createReviewNeededStore()
+
+/**
+ * t10 处置动作的注入面：列表宿主 + 判定缓存（确认记录随缓存同键同失效）。
+ * 缺省绑定会话单例；测试注入隔离实例。
+ */
+export interface ReviewNeededActionDeps {
+  /** 待复核列表宿主；缺省 reviewNeededStore（当前页面单例） */
+  store?: Pick<ReviewNeededStore, 'has' | 'remove'>
+  /** 判定缓存（含人工确认记录）；缺省 jevCache（绑定持久确认 store） */
+  cache?: Pick<JevCache, 'confirm' | 'revokeConfirmation'>
+}
+
+/** t10 待复核处置动作（FR-014：用户可重试、跳过或人工确认方向） */
+export interface ReviewNeededActions {
+  /**
+   * 重试：撤销该「岗位 + 当前方向」的人工确认后移出列表。撤销成功（或本就无确认）
+   * 才移出列表——待复核结果从不写缓存（FR-013），下一次扫到必然重新请求 Jev
+   * （AC-008 后半 / VAL-012）。撤销写盘失败时返回 false，列表原样保留（fail-closed）。
+   */
+  retry(jobKey: string, targetDirection?: string | null): Promise<boolean>
+  /** 跳过：只移出列表——不记排除、不动缓存与人工确认、统计不回退（t6 语义） */
+  skip(jobKey: string): boolean
+  /**
+   * 人工确认方向：持久记录（随 Jev 缓存同键同失效）并移出列表。确认只放行当前
+   * 岗位的**方向阶段**（零请求），硬条件照常执行（AC-010）；空方向 / 岗位已不在
+   * 待复核列表 / 写盘失败 → false 且列表原样保留。
+   */
+  confirm(jobKey: string, targetDirection: string): Promise<boolean>
+}
+
+export function createReviewNeededActions(deps: ReviewNeededActionDeps = {}): ReviewNeededActions {
+  const store = deps.store ?? reviewNeededStore
+  const cache = deps.cache ?? jevCache
+  return {
+    async retry(jobKey, targetDirection) {
+      const direction = targetDirection?.trim()
+      if (direction) {
+        try {
+          await cache.revokeConfirmation(jobKey, direction)
+        } catch {
+          // 确认撤销失败：保留列表条目（用户能看到重试未生效），不静默放行
+          return false
+        }
+      }
+      return store.remove(jobKey)
+    },
+    skip(jobKey) {
+      return store.remove(jobKey)
+    },
+    async confirm(jobKey, targetDirection) {
+      const direction = targetDirection?.trim() ?? ''
+      if (direction === '' || !store.has(jobKey)) return false
+      let recorded = false
+      try {
+        recorded = await cache.confirm(jobKey, direction)
+      } catch {
+        recorded = false
+      }
+      if (recorded) store.remove(jobKey)
+      return recorded
+    },
+  }
+}
+
+/** t10 会话单例动作：Statistics.vue 的重试 / 跳过 / 人工确认按钮入口 */
+export const reviewNeededActions = createReviewNeededActions()
+
+/**
+ * 恢复持久人工确认记录（t10）：与存储对齐后，方向阶段才会零请求放行已确认岗位。
+ * 幂等；存储损坏归一为空。供页面挂载与动作路径调用。
+ */
+export async function restoreReviewConfirmations(): Promise<void> {
+  await jevConfirmations.restore()
+}

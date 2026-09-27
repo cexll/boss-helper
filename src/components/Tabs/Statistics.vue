@@ -3,7 +3,11 @@ import { computed, onMounted, onUnmounted, ref } from 'vue'
 
 import Alert from '@/components/Alert.vue'
 import { useConf } from '@/composables/conf'
-import { reviewNeededStore } from '@/composables/useApplying/reviewNeeded'
+import {
+  restoreReviewConfirmations,
+  reviewNeededActions,
+  reviewNeededStore,
+} from '@/composables/useApplying/reviewNeeded'
 import type { ReviewNeededEntry } from '@/composables/useApplying/reviewNeeded'
 import { useHelper } from '@/composables/useHelper'
 
@@ -25,6 +29,25 @@ onUnmounted(unsubscribeReviewNeeded)
 const reviewNeededCounter = computed(() => {
   const statistics = todayData.value as { reviewNeeded?: number }
   return statistics.reviewNeeded ?? 0
+})
+
+// t10 处置动作（FR-014）：重试（重新请求 Jev）/ 跳过 / 人工确认方向。
+// 动作在 reviewNeeded.ts（纯状态，逐条测试），这里只做薄转发 + 目标方向注入。
+const targetDirection = () => conf.formData.jev?.targetDirection ?? ''
+const onRetry = async (item: ReviewNeededEntry) => {
+  await reviewNeededActions.retry(item.key, targetDirection())
+}
+const onSkip = (item: ReviewNeededEntry) => {
+  reviewNeededActions.skip(item.key)
+}
+const onConfirm = async (item: ReviewNeededEntry) => {
+  await reviewNeededActions.confirm(item.key, targetDirection())
+}
+
+onMounted(() => {
+  void helper.statistics.updateStatistics()
+  // t10：与持久确认记录对齐（幂等；存储损坏归一为空），方向阶段才会零请求放行
+  void restoreReviewConfirmations()
 })
 
 const statisticCycle = ref(1)
@@ -65,10 +88,6 @@ const cycle = computed(() => {
     ans += statisticsData.value[i]?.success ?? 0
   }
   return ans
-})
-
-onMounted(() => {
-  void helper.statistics.updateStatistics()
 })
 </script>
 
@@ -145,6 +164,35 @@ onMounted(() => {
       <div v-for="item in reviewNeededList" :key="item.key" class="flex items-center gap-2 text-sm">
         <span class="truncate max-w-[220px]" :title="item.jobName">{{ item.jobName }}</span>
         <UBadge color="warning" variant="subtle">{{ item.reason }}</UBadge>
+        <div class="flex gap-1 ml-auto shrink-0">
+          <UButton
+            size="xs"
+            variant="soft"
+            color="primary"
+            data-help="重试：撤销人工确认并移出列表，下一次扫到重新请求 Jev"
+            @click="onRetry(item)"
+          >
+            重试
+          </UButton>
+          <UButton
+            size="xs"
+            variant="soft"
+            color="warning"
+            data-help="跳过：只移出列表，不记排除、不改统计"
+            @click="onSkip(item)"
+          >
+            跳过
+          </UButton>
+          <UButton
+            size="xs"
+            variant="soft"
+            color="success"
+            data-help="人工确认方向：当前岗位 + 当前目标方向有效，确认后仍须通过硬条件"
+            @click="onConfirm(item)"
+          >
+            确认方向
+          </UButton>
+        </div>
       </div>
     </div>
     <div class="flex flex-row gap-2 items-center justify-center">
