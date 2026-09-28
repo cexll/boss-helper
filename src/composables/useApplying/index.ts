@@ -7,6 +7,7 @@ import type { PipelineCacheItem, ProcessorType } from '@/types/pipelineCache'
 import type { HelperContext } from '../useHelper'
 import { decideDeliveryLimitAbort, decideTaskErrorAbort } from './abortPolicy'
 import type { WorkflowAbortDecision } from './abortPolicy'
+import type { BackgroundThrottleStore } from './backgroundState'
 import { DependencyMissingError } from './handles'
 import type {
   Handler,
@@ -355,6 +356,16 @@ export async function useDeliveryWorkflow<C extends HelperContext<C, T, S>, T, S
     errorMessage.value = null
     status.value = 'running'
     const isStop = () => status.value === 'stop'
+    // t11 薄委托：把每次 delay 的实测耗时喂给节流提示 store（判定与文案都在 backgroundState.ts）。
+    // 只观测、不干预：await delay(...) 的实参、顺序与 isStop 语义完全不变。
+    // store 由 BossHelperCtx 提供；测试桩等未挂载该字段的 helper 直接跳过观测，不参与判定。
+    const throttle = (helper as C & { backgroundThrottle?: BackgroundThrottleStore })
+      .backgroundThrottle
+    const observe = (requested: number) => {
+      if (!throttle) return undefined
+      const timer = throttle.begin(requested)
+      return () => throttle.end(timer())
+    }
 
     try {
       while (status.value === 'running') {
@@ -375,7 +386,9 @@ export async function useDeliveryWorkflow<C extends HelperContext<C, T, S>, T, S
           helper.jobResultMaps.set(job.key, v)
         })
 
+        const finishStart = observe(helper.conf.formData.delayDeliveryStarts)
         await delay(helper.conf.formData.delayDeliveryStarts, isStop)
+        finishStart?.()
 
         for (const [index, jobData] of helper.jobList.value.entries()) {
           current.value = index + 1
@@ -419,12 +432,15 @@ export async function useDeliveryWorkflow<C extends HelperContext<C, T, S>, T, S
             break
           }
 
+          const finishInterval = observe(helper.conf.formData.delayDeliveryInterval)
           await delay(helper.conf.formData.delayDeliveryInterval, isStop)
+          finishInterval?.()
         }
-        if (isStop()) break
+        const finishPage = observe(helper.conf.formData.delayDeliveryPageNext)
         const hasMore = await helper.loadMoreJob(
           delay(helper.conf.formData.delayDeliveryPageNext, isStop),
         )
+        finishPage?.()
         if (!hasMore) {
           status.value = 'stop'
           stepMsg = '投递结束, 无法继续下一页'

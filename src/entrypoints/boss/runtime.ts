@@ -135,6 +135,8 @@ export class BossHelperCtx extends HelperContext<BossHelperCtx, BoosJobData, {}>
   /** t11：后台被节流时如实提示（只提示、不加速；判定与文案都在 backgroundState.ts）。 */
   backgroundThrottle = backgroundThrottleStore
 
+  private backgroundThrottleSubscribed = false
+
   _page = ref({ page: 1, pageSize: 15 })
   _pageHasMore = ref(true)
   _jobDetail = ref<BossZpDetailData>()
@@ -308,6 +310,34 @@ export class BossHelperCtx extends HelperContext<BossHelperCtx, BoosJobData, {}>
     const contentElm = elm.querySelector<HTMLDivElement>('.recommend-result-inner')
     this.geek = new GeekChatClientManager()
 
+    // t11：渲染后台节流提示。判定与文案都在 backgroundState.ts，这里只做展示。
+    // 纯展示、零加速控件；提示出现时额外发一次通知（用户在后台时看得见）。
+    if (!this.backgroundThrottleSubscribed) {
+      this.backgroundThrottleSubscribed = true
+      this.backgroundThrottle.subscribe((hint) => {
+        if (!BossHelperCtx.instance) return
+        const holder = BossHelperCtx.instance.querySelector('#boss-helper-throttle-hint')
+        if (!hint) {
+          holder?.remove()
+          return
+        }
+        if (holder) {
+          if (holder.textContent !== hint) holder.textContent = hint
+          return
+        }
+        const tip = document.createElement('div')
+        tip.id = 'boss-helper-throttle-hint'
+        tip.textContent = hint
+        tip.setAttribute('role', 'status')
+        tip.setAttribute('aria-live', 'polite')
+        tip.style.cssText =
+          'position:fixed;bottom:12px;left:12px;z-index:2147483000;max-width:min(420px,92vw);' +
+          'padding:10px 12px;border-radius:8px;background:#fff7ed;border:1px solid #fdba74;' +
+          'color:#9a3412;font-size:12px;line-height:1.5;box-shadow:0 4px 14px rgba(0,0,0,.18)'
+        document.body.appendChild(tip)
+        void this.notification(hint)
+      })
+    }
     watch(
       appearanceConf.value,
       (v) => {
