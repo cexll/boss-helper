@@ -577,7 +577,7 @@ test('后台入口接线：起用即注册 Jev 监听，收到消息后用存储
   const storageMap: Record<string, unknown> = { 'local:jev-api-key': 'k-stored' }
   let definition: { main: () => void } | null = null
 
-  mock.module('#imports', () => ({
+  void mock.module('#imports', () => ({
     defineBackground: (def: { main: () => void }) => {
       definition = def
       return def

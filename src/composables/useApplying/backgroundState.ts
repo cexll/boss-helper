@@ -23,7 +23,7 @@ export type VisibilityState = 'visible' | 'hidden' | 'prerender' | 'unloaded'
 export type ThrottleHintDecision = 'hidden' | 'throttled'
 
 /** 触发提示所需的**连续**被节流次数：p2 §5 定为 2（避免把切换瞬间的抖动当成节流）。 */
-export const THROTTLE_CONSECUTIVE_THRESHOLD = 2
+const THROTTLE_CONSECUTIVE_THRESHOLD = 2
 
 /**
  * 单次 `delay()` 是否被显著拉长（p2 §5）：
@@ -50,7 +50,7 @@ export function decideThrottleHint(state: {
  * （`actual < requested + 3`）。仍不可见时即使计时恢复也不清除——
  * 用户没在看页面，此时收回提示反而会掩盖后续再次变慢的事实。
  */
-export function shouldClearThrottleHint(
+function shouldClearThrottleHint(
   visibility: VisibilityState,
   requested: number,
   actual: number,
@@ -74,7 +74,7 @@ export interface BackgroundThrottleDeps {
 }
 
 /** `begin(requested)` 的返回值：拿到该次 delay 的实际耗时后交给 `end`。 */
-export type DelayTimer = (actual: number) => { requested: number; actual: number }
+type DelayTimer = (actual?: number) => { requested: number; actual: number }
 
 export interface BackgroundThrottleStore {
   /** 开始观察一次 `delay(requested)`；返回一个精确配对的测量收尾器（不会串到别次计时）。 */

@@ -1,5 +1,6 @@
 import { expect, test } from 'bun:test'
 
+import type { VisibilityState } from './backgroundState'
 import {
   BACKGROUND_THROTTLE_HINT,
   createBackgroundThrottleStore,
@@ -73,7 +74,7 @@ test('提示文案如实说明：后台计时被限制、间隔被拉长、任�
 })
 
 test('store：注入可见性与时钟，观察 delay() 后按 §5 触发提示', () => {
-  let visibility = 'hidden'
+  let visibility: VisibilityState = 'hidden'
   let now = 0
   const store = createBackgroundThrottleStore({
     visibility: () => visibility,
@@ -95,7 +96,7 @@ test('store：注入可见性与时钟，观察 delay() 后按 §5 触发提示'
 })
 
 test('store：可见状态下不提示，且把连续计数清零', () => {
-  let visibility = 'visible'
+  let visibility: VisibilityState = 'visible'
   let now = 0
   const store = createBackgroundThrottleStore({ visibility: () => visibility, now: () => now })
 
@@ -119,7 +120,7 @@ test('store：可见状态下不提示，且把连续计数清零', () => {
 })
 
 test('store：切回前台且下一次计时恢复常态（actual < requested + 3）时清除提示', () => {
-  let visibility = 'hidden'
+  let visibility: VisibilityState = 'hidden'
   let now = 0
   const store = createBackgroundThrottleStore({ visibility: () => visibility, now: () => now })
 
@@ -144,7 +145,7 @@ test('store：切回前台且下一次计时恢复常态（actual < requested + 
 })
 
 test('store：切回前台但下一次计时仍被拉长（actual >= requested + 3）时不提前清除', () => {
-  let visibility = 'hidden'
+  let visibility: VisibilityState = 'hidden'
   let now = 0
   const store = createBackgroundThrottleStore({ visibility: () => visibility, now: () => now })
 
@@ -169,7 +170,7 @@ test('store：切回前台但下一次计时仍被拉长（actual >= requested +
   expect(store.copy()).toBeUndefined()
 })
 test('store：可见且超时恰为 requested + 3 时不提前清除（保留提示等待下一次观测）', () => {
-  let visibility = 'hidden'
+  let visibility: VisibilityState = 'hidden'
   let now = 0
   const store = createBackgroundThrottleStore({ visibility: () => visibility, now: () => now })
 
@@ -187,7 +188,7 @@ test('store：可见且超时恰为 requested + 3 时不提前清除（保留提
   expect(store.copy()).toBeUndefined()
 })
 test('store：订阅只在提示状态真的变化时通知', () => {
-  let visibility = 'visible'
+  let visibility: VisibilityState = 'visible'
   let now = 0
   const store = createBackgroundThrottleStore({ visibility: () => visibility, now: () => now })
 
@@ -231,7 +232,7 @@ test('store：订阅只在提示状态真的变化时通知', () => {
 })
 
 test('store：clear 手动清除提示与计数', () => {
-  let visibility = 'hidden'
+  let visibility: VisibilityState = 'hidden'
   let now = 0
   const store = createBackgroundThrottleStore({ visibility: () => visibility, now: () => now })
 
@@ -249,7 +250,7 @@ test('store：clear 手动清除提示与计数', () => {
 })
 
 test('store：不可见性包含 document 的其它非 visible 取值（如 prerender）', () => {
-  let visibility = 'prerender'
+  let visibility: VisibilityState = 'prerender'
   let now = 0
   const store = createBackgroundThrottleStore({ visibility: () => visibility, now: () => now })
 

@@ -22,7 +22,7 @@
  * 缺省用会话级单例（随投递运行生命周期）。
  */
 
-import type { JevJobInput, JevKeyReader, JevNoulQuestion, JevOutcome } from '@/utils/jev'
+import type { JevJobInput, JevKeyReader, JevOutcome } from '@/utils/jev'
 
 import { jevCache } from './jevCache'
 import type { JevCache, JevCachedDecision } from './jevCache'
