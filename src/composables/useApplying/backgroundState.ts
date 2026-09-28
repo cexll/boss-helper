@@ -151,9 +151,11 @@ export function createBackgroundThrottleStore(
 
     const throttled = isThrottledDelay(sample.requested, sample.actual)
 
-    // 可见且已恢复到常态（actual < requested + 3）却仍在提示中：
-    // 说明是「可见但被拉长」的残留提示，同样要清除（与上一分支合起来覆盖 §5 的恢复条件）。
-    if (hint !== undefined && view === 'visible' && !throttled) {
+    // 可见且下一次计时已回到常态（actual < requested + 3，p2 §5）：清除残留提示。
+    // 必须用 §5 的「常态」带宽（+3s），不能复用 isThrottledDelay 的节流门槛
+    // max(2×requested, requested+10) —— 后者过宽，两个方向都会误判。
+
+    if (hint !== undefined && view === 'visible' && sample.actual < sample.requested + 3) {
       consecutiveThrottled = 0
       setHint(undefined)
       return undefined

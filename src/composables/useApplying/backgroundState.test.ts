@@ -169,7 +169,7 @@ test('store：切回前台但下一次计时仍被拉长（actual >= requested +
   expect(store.end(d())).toBeUndefined()
   expect(store.copy()).toBeUndefined()
 })
-test('store：可见且超时恰为 requested + 3 时不提前清除（保留提示等待下一次观测）', () => {
+test('store：切回前台且下一次计时已恢复常态（actual < requested + 3）时清除提示', () => {
   let visibility: VisibilityState = 'hidden'
   let now = 0
   const store = createBackgroundThrottleStore({ visibility: () => visibility, now: () => now })
@@ -183,9 +183,44 @@ test('store：可见且超时恰为 requested + 3 时不提前清除（保留提
 
   visibility = 'visible'
   const c = store.begin(5)
-  now += 3_000 // 恰为 requested + 3：actual < requested + 3 为假，不满足 §5 清除条件
+  now += 3_000 // actual=3 < requested + 3：满足 §5 清除条件
   expect(store.end(c())).toBeUndefined()
   expect(store.copy()).toBeUndefined()
+})
+test('store：可见但 actual 恰为 requested + 3 时不清除（§5 边界，actual < requested + 3 为假）', () => {
+  let visibility: VisibilityState = 'hidden'
+  let now = 0
+  const store = createBackgroundThrottleStore({ visibility: () => visibility, now: () => now })
+
+  const a = store.begin(5)
+  now += 60_000
+  store.end(a())
+  const b = store.begin(5)
+  now += 60_000
+  expect(store.end(b())).toBe(BACKGROUND_THROTTLE_HINT)
+
+  visibility = 'visible'
+  const c = store.begin(5)
+  now += 8_000 // actual=8 === requested + 3：未达「已恢复」，必须保留
+  expect(store.end(c())).toBe(BACKGROUND_THROTTLE_HINT)
+  expect(store.copy()).toBe(BACKGROUND_THROTTLE_HINT)
+})
+test('store：可见但 actual 仍被拉长（>= requested + 3 且未达节流门槛）时不清除', () => {
+  let visibility: VisibilityState = 'hidden'
+  let now = 0
+  const store = createBackgroundThrottleStore({ visibility: () => visibility, now: () => now })
+
+  const a = store.begin(5)
+  now += 60_000
+  store.end(a())
+  const b = store.begin(5)
+  now += 60_000
+  expect(store.end(b())).toBe(BACKGROUND_THROTTLE_HINT)
+
+  visibility = 'visible'
+  const c = store.begin(5)
+  now += 9_000 // 9 >= 8（未恢复），但 9 < max(2×5, 5+10)=15（未达节流门槛）
+  expect(store.end(c())).toBe(BACKGROUND_THROTTLE_HINT)
 })
 test('store：订阅只在提示状态真的变化时通知', () => {
   let visibility: VisibilityState = 'visible'
