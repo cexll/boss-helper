@@ -41,14 +41,14 @@ shasum -a 256 .output/chrome-mv3/manifest.json
 
 1. 步骤 1 退出码 0，stdout 含 PASS 行 `build-smoke: PASS — chrome-mv3 manifests and entry files conform (9 outputs in .output)`。
 2. 步骤 2 后 `git status --porcelain` 为空（含 `components.d.ts`）。若 `oxfmt` 后仍有 diff，说明再生成内容与已提交字节真实分叉——停下核对，不得手工编辑、不得带脏树继续。
-3. 步骤 3 记录 manifest sha256 与上一轮对照：基线 `ccd0a229…`（r2 观测，全量见 r2 报告/证据 `VAL-015-build-smoke.stdout.txt`）。sha 变化本身不阻断（字段可合法变化），但**必须**在结论中说明变化来自哪个 manifest 字段；无解释的 sha 漂移即停。
+3. 步骤 3 记录 manifest sha256 与上一轮对照：基线 `ccd0a229…`（出处是 r2 报告的断言记录 `.specs/jev-job-filter/missions/reports/a-final-2-r2.json` → `assertions[VAL-015].steps[0].observed`；证据文件 `VAL-015-build-smoke.stdout.txt` 本身只含 PASS 行与构建日志，**不含**该 sha）。sha 变化本身不阻断（字段可合法变化），但**必须**在结论中说明变化来自哪个 manifest 字段；无解释的 sha 漂移即停。
 4. 通过判定的结论若声称「bundle 新鲜」，必须附产物内 grep 佐证（如两条提示串各 1 处）；只有 PASS 行不得得出该结论。
 
 ## Evidence expected
 
 落盘 `.run/qa/build-manifest/`：
 
-- `build-smoke.stdout.txt` — 晋升基线副本：`VAL-015-build-smoke.stdout.txt`，sha256 `098683012a9ddd66df07a2605ec5c648584a317bda8a003babaa853b4fb1a6e4`（含 PASS 行与 manifest sha `ccd0a229…`）。
+- `build-smoke.stdout.txt` — 晋升基线副本：`VAL-015-build-smoke.stdout.txt`，sha256 `098683012a9ddd66df07a2605ec5c648584a317bda8a003babaa853b4fb1a6e4`（含 PASS 行与构建日志；manifest sha `ccd0a229…` 不在此文件内，见上方第 3 条出处）。
 - 再生 diff 记录（基线存在，证明 oxfmt 规程精确复现已提交字节）：`VAL-015-components.d.ts.generated-diff.txt`，sha256 `aeefd39d5a0aafb0d0da5ca48ac6b478d573cb13abc12456e45b82cc5ed3441f`。
 
 ## Assertion coverage map（本目录全部 13 个流程契约 / 17 条断言）

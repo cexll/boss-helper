@@ -28,9 +28,10 @@ bun run .specs/jev-job-filter/missions/evidence/a-final-2-r2/val-007-pipeline.ts
   | tee .run/qa/review-disposition/pipeline.stdout.txt
 
 # 2) 流水线测试套件（index.pipeline + handles.pipeline，junit）
-bun test src/composables/useApplying/index.pipeline.test.ts src/composables/useApplying/handles.pipeline.test.ts --reporter=junit \
-  | tee .run/qa/review-disposition/buntest.txt
+bun test src/composables/useApplying/index.pipeline.test.ts src/composables/useApplying/handles.pipeline.test.ts --reporter=junit --reporter-outfile=.run/qa/review-disposition/junit.xml
 ```
+
+> **驱动脚本可用性（披露）**：本契约引用的驱动脚本 `val-007-pipeline.ts` 位于 `.specs/jev-job-filter/missions/evidence/`（被 `.specs/.gitignore` 的 `*/missions/` 规则忽略，git 不跟踪）。fresh checkout 下不可执行。替代核实路径：直接运行 `bun test src/composables/useApplying/index.pipeline.test.ts src/composables/useApplying/handles.pipeline.test.ts`（同一断言集的仓库内测试；驱动脚本与之的差异仅是「逐行对照 spec 期望值」的呈现层，判定逻辑同源）。
 
 ## Blocking checks for future runs
 

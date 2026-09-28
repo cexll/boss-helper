@@ -25,19 +25,18 @@
 mkdir -p .run/qa/jev-cache
 
 # 1) 缓存键与失效语义（junit）
-bun test src/composables/useApplying/jevCache.test.ts --reporter=junit \
-  | tee .run/qa/jev-cache/buntest.txt
+bun test src/composables/useApplying/jevCache.test.ts --reporter=junit --reporter-outfile=.run/qa/jev-cache/junit.xml
 ```
 
 ## Blocking checks for future runs
 
 1. 步骤 1 退出码 0 且输出 `0 fail`；通过数基线 `18 pass`（1 文件，2026-09-29 于 303c82a 观测并复跑一致）；JUnit 根节点 `tests=18 assertions=39 failures=0`。新增用例使计数上升不算失败；任何 `fail` 即停。
-2. JUnit 中必须存在并全过的用例（2026-09-29 于 303c82a 实测名称）：「(a) 同岗位同判定依据第二次扫到：命中缓存，不再请求 Jev 结果缓存」「(b) 修改目标方向后重新请求 Jev」「(c) 不确定结果不写缓存：同一岗位再次扫到重新请求 Jev」「(c2) 报错 / 超时同样不写缓存」「模型标识参与判定依据：会话内观测到模型版本变化 → 旧缓存整库失效」「clear 清空全部条目并重置模型指针」。
+2. JUnit 中必须存在并全过的用例（逐字取自基线 `VAL-011-junit.xml` 的 testcase `name`，2026-09-29 于 303c82a）：「(a) 同岗位同判定依据第二次扫到：命中缓存，不再请求 Jev」「(b) 修改目标方向后重新请求 Jev（判定依据变化即失效）」「(c) 不确定结果不写缓存：同一岗位再次扫到重新请求 Jev（FR-013）」「(c2) 报错 / 超时同样不写缓存：第二次重新请求（FR-013）」「模型标识参与判定依据：会话内观测到模型版本变化 → 旧缓存整库失效（p1 §3.2）」「clear 清空全部条目并重置模型指针（页面刷新语义）」。
 3. 上述用例若被改名/删除，视为本契约失效，须停下核对，不得以「通过数未降」放行。
 
 ## Evidence expected
 
 落盘 `.run/qa/jev-cache/`：
 
-- `buntest.txt` — 晋升基线副本：`VAL-011-buntest.txt`，sha256 `091480317d35d1f56b8b84902f9f5afc0d3985c8d860784662ea9078b4065296`。
+- `buntest.txt` — 晋升基线副本（默认 reporter 文本，非 junit）：`VAL-011-buntest.txt`，sha256 `091480317d35d1f56b8b84902f9f5afc0d3985c8d860784662ea9078b4065296`。
 - JUnit 基线：`VAL-011-junit.xml`，sha256 `2312a65f3a329d8d1a0fe15e871e210c0c68c146f55c9adcc2202cf9a98f7cb3`（18 testcase / failures=0）。

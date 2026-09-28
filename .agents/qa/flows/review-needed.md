@@ -24,8 +24,7 @@
 mkdir -p .run/qa/review-needed
 
 # 1) 待复核 store 语义（junit）
-bun test src/composables/useApplying/reviewNeeded.test.ts --reporter=junit \
-  | tee .run/qa/review-needed/buntest.txt
+bun test src/composables/useApplying/reviewNeeded.test.ts --reporter=junit --reporter-outfile=.run/qa/review-needed/junit.xml
 ```
 
 ## Blocking checks for future runs

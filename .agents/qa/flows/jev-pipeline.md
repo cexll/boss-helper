@@ -20,8 +20,7 @@
 mkdir -p .run/qa/jev-pipeline
 
 # 1) 方向判断 + 流水线请求计数（junit）
-bun test src/composables/useApplying/jevDirection.test.ts src/composables/useApplying/jevDirection.pipeline.test.ts --reporter=junit \
-  | tee .run/qa/jev-pipeline/buntest.txt
+bun test src/composables/useApplying/jevDirection.test.ts src/composables/useApplying/jevDirection.pipeline.test.ts --reporter=junit --reporter-outfile=.run/qa/jev-pipeline/junit.xml
 ```
 
 ## Blocking checks for future runs

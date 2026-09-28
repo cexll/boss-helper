@@ -53,8 +53,7 @@ print('constants match p1 §6.4 confirmed values')
 PY
 
 # 3) 口径被测试钉住（junit；与 jev-client.md 同批）
-bun test src/utils/jev.test.ts src/entrypoints/boss/delivery.test.ts --reporter=junit \
-  | tee .run/qa/jev-p1-record/buntest.txt
+bun test src/utils/jev.test.ts src/entrypoints/boss/delivery.test.ts --reporter=junit --reporter-outfile=.run/qa/jev-p1-record/junit.xml
 ```
 
 ## Blocking checks for future runs
@@ -70,5 +69,5 @@ bun test src/utils/jev.test.ts src/entrypoints/boss/delivery.test.ts --reporter=
 
 落盘 `.run/qa/jev-p1-record/`：
 
-- `buntest.txt`（junit） — 基线副本：`VAL-009-buntest.txt`，sha256 `d6e826e0f7e73d7032d10007e78a17b7b5ef4b82b934cd4da97f179f7264f9a1`；JUnit `VAL-009-junit.xml`，sha256 `c0e21315d6a38ea83dc5fa3700b9730c9848a79b8b96bae022b352da08c03975`。
+- `buntest.txt` — 基线副本（默认 reporter 文本，非 junit）：`VAL-009-buntest.txt`，sha256 `d6e826e0f7e73d7032d10007e78a17b7b5ef4b82b934cd4da97f179f7264f9a1`；JUnit `VAL-009-junit.xml`，sha256 `c0e21315d6a38ea83dc5fa3700b9730c9848a79b8b96bae022b352da08c03975`。
 - 记录快照基线：`VAL-016-jev-p1-record.md`，sha256 `549437bd7f617fa2ee125f04a1810f5c08f8b5d88ba115f0de33f379214ed93b`（与 `docs/probes/jev-p1-record.md` 当前内容一致）。

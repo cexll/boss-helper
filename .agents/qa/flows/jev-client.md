@@ -27,8 +27,7 @@
 mkdir -p .run/qa/jev-client-contract
 
 # 1) jev 客户端 + 投递接入（junit）
-bun test src/utils/jev.test.ts src/entrypoints/boss/delivery.test.ts --reporter=junit \
-  | tee .run/qa/jev-client-contract/buntest.txt
+bun test src/utils/jev.test.ts src/entrypoints/boss/delivery.test.ts --reporter=junit --reporter-outfile=.run/qa/jev-client-contract/junit.xml
 ```
 
 补充核对（只读，非阻断）：`grep -n "JEV_TIMEOUT_MS\|job_description" src/utils/jev.ts`、`grep -n "JEV_UNCERTAIN_BAND" src/composables/useApplying/jevDirection.ts`，确认常量口径与契约一致。

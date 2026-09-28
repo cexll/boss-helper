@@ -32,6 +32,8 @@ bun test src/composables/conf src/types/formData.test.ts \
   | tee .run/qa/config-migration/conf-buntest.txt
 ```
 
+> **驱动脚本可用性（披露）**：本契约引用的驱动脚本 `val-005-migration.ts` 位于 `.specs/jev-job-filter/missions/evidence/`（被 `.specs/.gitignore` 的 `*/missions/` 规则忽略，git 不跟踪）。fresh checkout 下不可执行。替代核实路径：直接运行 `bun test src/composables/conf/`（同一断言集的仓库内测试；驱动脚本与之的差异仅是「逐行对照 spec 期望值」的呈现层，判定逻辑同源）。
+
 ## Blocking checks for future runs
 
 任一不满足即停：
