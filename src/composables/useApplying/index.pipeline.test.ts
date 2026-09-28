@@ -483,7 +483,11 @@ describe('executeAll 批量语义', () => {
     expect(wf.errorMessage.value).toBe('没有职位可投递')
     expect(notificationCalls).toEqual(['没有职位可投递'])
   })
+})
 
+// ———————————————— reset ————————————————
+
+describe('executeAll 批量语义（续）：上限、停机与异常收尾', () => {
   test('本地投递上限岗前拦截：达到上限后不再发任何投递', async () => {
     const seq: string[] = []
     const notificationCalls: string[] = []
@@ -638,8 +642,6 @@ describe('executeAll 批量语义', () => {
     expect(notificationCalls).toEqual(['投递结束'])
   })
 })
-
-// ———————————————— reset ————————————————
 
 describe('reset 重置语义', () => {
   test('状态归 pending；非 success 结果重置回等待，success 与缺失条目不动', async () => {
