@@ -33,5 +33,4 @@ bun test src/composables/useApplying/jevDirection.test.ts src/composables/useApp
 
 落盘 `.run/qa/jev-pipeline/`：
 
-- `buntest.txt` — 晋升基线副本：`VAL-010-buntest.txt`，sha256 `5e590a5f99d55e83c4b70253da376f51a869777fa3ed2fd9d435732f04ddc0bc`。
-- JUnit 基线：`VAL-010-junit.xml`，sha256 `8e8a659b2c1d0832b5f3eb2f54cef026a91c2550012dfe1f0623c295314c1dd3`（35 testcase / failures=0）。
+- `junit.xml` — 本流程产出（`--reporter-outfile` 落盘）。参照基线：`VAL-010-junit.xml`，sha256 `8e8a659b2c1d0832b5f3eb2f54cef026a91c2550012dfe1f0623c295314c1dd3`（35 testcase / failures=0）。历史人读摘要基线（默认 reporter 文本，现版步骤不再落盘）：`VAL-010-buntest.txt`，sha256 `5e590a5f99d55e83c4b70253da376f51a869777fa3ed2fd9d435732f04ddc0bc`。

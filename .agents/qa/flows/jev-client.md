@@ -42,6 +42,5 @@ bun test src/utils/jev.test.ts src/entrypoints/boss/delivery.test.ts --reporter=
 
 落盘 `.run/qa/jev-client-contract/`：
 
-- `buntest.txt` — 晋升基线副本：`VAL-009-buntest.txt`，sha256 `d6e826e0f7e73d7032d10007e78a17b7b5ef4b82b934cd4da97f179f7264f9a1`。
-- JUnit 基线：`VAL-009-junit.xml`，sha256 `c0e21315d6a38ea83dc5fa3700b9730c9848a79b8b96bae022b352da08c03975`（41 testcase / failures=0）。
+- `junit.xml` — 本流程产出（`--reporter-outfile` 落盘）。参照基线：`VAL-009-junit.xml`，sha256 `c0e21315d6a38ea83dc5fa3700b9730c9848a79b8b96bae022b352da08c03975`（41 testcase / failures=0）。历史人读摘要基线（默认 reporter 文本，现版步骤不再落盘）：`VAL-009-buntest.txt`，sha256 `d6e826e0f7e73d7032d10007e78a17b7b5ef4b82b934cd4da97f179f7264f9a1`。
 - p1 实测记录（口径依据，只读）：`docs/probes/jev-p1-record.md`；晋升快照副本 `VAL-016-jev-p1-record.md`，sha256 `549437bd7f61…`（全量 sha 见 VAL-016 流程契约）。

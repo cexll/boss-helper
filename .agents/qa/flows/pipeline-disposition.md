@@ -47,6 +47,5 @@ bun test src/composables/useApplying/index.pipeline.test.ts src/composables/useA
 落盘 `.run/qa/review-disposition/`：
 
 - `pipeline.stdout.txt` — 晋升基线副本：`VAL-007-pipeline.stdout.txt`，sha256 `7d6045cd18e6c16972f1e246746e65483e8175297d047c7804f3ceb292f45ae4`。
-- `buntest.txt` — 基线副本：`VAL-007-buntest.txt`，sha256 `aef21145a82a3aed868b616c2d991491b569483fb538e4fbe72990a4dc8eaa61`。
-- JUnit 基线：`VAL-007-junit.xml`，sha256 `c8bc7dbcd13f34685d823c0c099c91210f8e6bed4cfc92e56c2098bab15c54fe`（27 testcase / failures=0）。
+- `junit.xml` — 本流程产出（`--reporter-outfile` 落盘）。参照基线：`VAL-007-junit.xml`，sha256 `c8bc7dbcd13f34685d823c0c099c91210f8e6bed4cfc92e56c2098bab15c54fe`（27 testcase / failures=0）。历史人读摘要基线（默认 reporter 文本，现版步骤不再落盘）：`VAL-007-buntest.txt`，sha256 `aef21145a82a3aed868b616c2d991491b569483fb538e4fbe72990a4dc8eaa61`。
 - 驱动脚本本体：`val-007-pipeline.ts`（sha256 见上）。

@@ -38,5 +38,4 @@ bun test src/composables/useApplying/jevCache.test.ts --reporter=junit --reporte
 
 落盘 `.run/qa/jev-cache/`：
 
-- `buntest.txt` — 晋升基线副本（默认 reporter 文本，非 junit）：`VAL-011-buntest.txt`，sha256 `091480317d35d1f56b8b84902f9f5afc0d3985c8d860784662ea9078b4065296`。
-- JUnit 基线：`VAL-011-junit.xml`，sha256 `2312a65f3a329d8d1a0fe15e871e210c0c68c146f55c9adcc2202cf9a98f7cb3`（18 testcase / failures=0）。
+- `junit.xml` — 本流程产出（`--reporter-outfile` 落盘）。参照基线：`VAL-011-junit.xml`，sha256 `2312a65f3a329d8d1a0fe15e871e210c0c68c146f55c9adcc2202cf9a98f7cb3`（18 testcase / failures=0）。历史人读摘要基线（默认 reporter 文本，现版步骤不再落盘）：`VAL-011-buntest.txt`，sha256 `091480317d35d1f56b8b84902f9f5afc0d3985c8d860784662ea9078b4065296`。

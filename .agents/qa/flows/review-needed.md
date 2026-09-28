@@ -37,5 +37,4 @@ bun test src/composables/useApplying/reviewNeeded.test.ts --reporter=junit --rep
 
 落盘 `.run/qa/review-needed/`：
 
-- `buntest.txt` — 晋升基线副本：`VAL-012-buntest.txt`，sha256 `6a60e01886c89a41569a4e4c4e820b48f81e562f822d8a1671b486a41ed1a0b8`。
-- JUnit 基线：`VAL-012-junit.xml`，sha256 `5e0334209fa86cc89c3e4ccff849ec43f331167cbde075ab20bbc5ac645dcc69`（35 testcase / failures=0）。
+- `junit.xml` — 本流程产出（`--reporter-outfile` 落盘）。参照基线：`VAL-012-junit.xml`，sha256 `5e0334209fa86cc89c3e4ccff849ec43f331167cbde075ab20bbc5ac645dcc69`（35 testcase / failures=0）。历史人读摘要基线（默认 reporter 文本，现版步骤不再落盘）：`VAL-012-buntest.txt`，sha256 `6a60e01886c89a41569a4e4c4e820b48f81e562f822d8a1671b486a41ed1a0b8`。
