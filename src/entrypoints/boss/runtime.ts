@@ -1,6 +1,7 @@
 import { ref } from 'vue'
 
 import { appearanceConf, useConf } from '@/composables/conf'
+import { backgroundThrottleStore } from '@/composables/useApplying/backgroundState'
 import type { WorkflowData } from '@/composables/useApplying/type'
 import { createLazyObject, isInitialized } from '@/composables/useApplying/type'
 import type { JobData } from '@/composables/useHelper'
@@ -130,6 +131,9 @@ export class BossHelperCtx extends HelperContext<BossHelperCtx, BoosJobData, {}>
   key = 'boss'
 
   geek!: GeekChatClientManager
+
+  /** t11：后台被节流时如实提示（只提示、不加速；判定与文案都在 backgroundState.ts）。 */
+  backgroundThrottle = backgroundThrottleStore
 
   _page = ref({ page: 1, pageSize: 15 })
   _pageHasMore = ref(true)
