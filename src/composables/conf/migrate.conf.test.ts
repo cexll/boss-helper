@@ -1,5 +1,7 @@
 import { beforeEach, describe, expect, mock, test } from 'bun:test'
 
+import type { ConfigLevel } from '@/types/formData'
+
 import type * as ConfNamespace from './index'
 import { defaultFormData } from './info'
 
@@ -263,8 +265,8 @@ describe('useConf.confDelete / confRecommend：字段复位与推荐子集', () 
     conf.confDelete()
     expect(conf.formData.deliveryLimit.value).toBe(defaultFormData.deliveryLimit.value)
     expect(conf.formData.activityFilter.value).toBe(defaultFormData.activityFilter.value)
-    expect(conf.formData.configLevel).toBe(defaultFormData.configLevel)
-    expect(conf.formData.customGreeting.value).toBe(defaultFormData.customGreeting.value)
+    expect(conf.formData.configLevel as ConfigLevel).toBe(defaultFormData.configLevel)
+    expect(conf.formData.customGreeting.value).toBe(defaultFormData.customGreeting.value as string)
     expect(conf.formData.salaryRange.value).toEqual(defaultFormData.salaryRange.value)
     expect(conf.formData.jobTitle.enable).toBe(defaultFormData.jobTitle.enable)
     expect(storageMap.size).toBe(0) // toast 声明「不会自动保存」：不得落盘
