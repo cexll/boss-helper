@@ -135,15 +135,17 @@ const FROM_VERSION: [string, (from: Partial<FormData>) => Partial<FormData>][] =
 ]
 
 /**
- * 存量配置逐级迁移（FROM_VERSION 倒序补跑，存量 version 达到即停）。
+ * 存量配置逐级迁移（FROM_VERSION 升序补跑：低于存量 version 的版本器跳过，
+ * 其余按序补跑并逐个就地盖章）。与存量版本比较必须用补跑前的原始 version，
+ * 不能用循环中已盖章的新值——否则首个版本器执行后即为最新，其余全部被误判为已达到。
  * 纯函数：无 toast / 日志 / 存储副作用，可被 bun test 直接验证；
  * formDataHandler 只包一层 try/catch + 用户提示。
  */
 export function migrateFormData(from: Partial<FormData>): Partial<FormData> {
-  for (let i = FROM_VERSION.length - 1; i >= 0; i--) {
-    const [version, fn] = FROM_VERSION[i]!
-    if ((from?.version ?? '20240401') >= version) {
-      break
+  const storedVersion = from?.version ?? '20240401'
+  for (const [version, fn] of FROM_VERSION) {
+    if (storedVersion >= version) {
+      continue
     }
     from = fn(from)
     from.version = version
@@ -272,6 +274,7 @@ export const useConf = () => {
         },
         {} as Record<string, any>,
       ),
+      { clone: false },
     )
     logger.debug('formData推荐配置已应用')
     toast.add({
@@ -281,7 +284,7 @@ export const useConf = () => {
   }
 
   function confDelete() {
-    deepmerge(formData, defaultFormData)
+    deepmerge(formData, defaultFormData, { clone: false })
     logger.debug('formData已清空')
     toast.add({
       title: '配置清空成功, 不会自动保存, 请手动保存或重载恢复',
