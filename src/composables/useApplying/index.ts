@@ -9,7 +9,6 @@ import type { HelperContext, JobData } from '../useHelper'
 import { decideDeliveryLimitAbort, decideTaskErrorAbort } from './abortPolicy'
 import type { WorkflowAbortDecision } from './abortPolicy'
 import type { BackgroundThrottleStore } from './backgroundState'
-import { DependencyMissingError } from './handles'
 import type {
   Handler,
   JobStatus,
@@ -20,7 +19,7 @@ import type {
   TaskStatus,
   WorkflowData,
 } from './type'
-import { jobStatusList } from './type'
+import { DependencyMissingError, jobStatusList } from './type'
 
 // 全局缓存管理器实例
 let cacheManager: PipelineCacheManager | null = null
@@ -66,6 +65,14 @@ export function checkJobCache(key: string): PipelineCacheItem | null {
 export type DeliveryWorkflow<C extends HelperContext<C, T, S>, T, S> = Awaited<
   ReturnType<typeof useDeliveryWorkflow<C, T, S>>
 >
+
+export function defineTaskWorkflow<C extends HelperContext<C, T, S>, T, S = {}>(
+  ...items: Array<Task<C, T, S> | TaskPipeline<C, T, S> | (() => Task<C, T, S>)>
+): (ctx: C) => Promise<DeliveryWorkflow<C, T, S>> {
+  const allDefinitions = items.flatMap((i) => (typeof i === 'function' ? i() : i))
+
+  return async (_ctx: C) => useDeliveryWorkflow(allDefinitions, _ctx)
+}
 
 function meginResults(res: void | TaskResult | Array<TaskResult | void>): TaskResult | void {
   if (!res) return

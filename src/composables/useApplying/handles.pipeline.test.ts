@@ -36,7 +36,7 @@ const handles = (await import('./handles')) as Record<string, any>
 const { TaskRegistry } = handles
 const { drive } = createDrivers({
   TaskRegistry,
-  defineTaskWorkflow: ((await import('./type')) as Record<string, any>).defineTaskWorkflow,
+  defineTaskWorkflow: ((await import('./index')) as Record<string, any>).defineTaskWorkflow,
 })
 
 beforeEach(resetFixtures)

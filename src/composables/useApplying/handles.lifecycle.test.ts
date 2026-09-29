@@ -62,9 +62,10 @@ beforeEach(() => {
 const handles = (await import('./handles')) as Record<string, any>
 const { HelperConfigError, TaskRegistry, taskResult } = handles
 const applyingType = (await import('./type')) as Record<string, any>
+const applyingIndex = (await import('./index')) as Record<string, any>
 const { drive, registrationError, runWorkflow } = createDrivers({
   TaskRegistry,
-  defineTaskWorkflow: applyingType.defineTaskWorkflow,
+  defineTaskWorkflow: applyingIndex.defineTaskWorkflow,
 })
 
 // ———————————————— AI 筛选 / AI 招呼语 ————————————————
@@ -424,7 +425,7 @@ describe('重复沟通过滤（注册期读存储 → fn 跳过 → after 落盘
 describe('taskResult 结果状态经真实 execute 记账', () => {
   test('error() 结果在 jobResultMaps 标 error 并计入 statistics.tasks[id].error', async () => {
     const { helper, statistics } = makeHelper()
-    const wf = await applyingType.defineTaskWorkflow(
+    const wf = await applyingIndex.defineTaskWorkflow(
       applyingType.defineTaskHandler('模型缺失', () => async () => taskResult.error('模型未配置')),
     )(helper)
     await wf.rebuild()

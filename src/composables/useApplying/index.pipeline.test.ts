@@ -74,7 +74,7 @@ Object.assign(globalThis, { computed, logger, jsonClone, delay })
 
 const workflowModule = (await import('./index')) as Record<string, any>
 const { useDeliveryWorkflow, getCacheManager, cachePipelineResult, checkJobCache } = workflowModule
-const { DependencyMissingError } = await import('./handles')
+const { DependencyMissingError } = await import('./type')
 
 beforeEach(() => {
   alerts.length = 0

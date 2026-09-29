@@ -162,7 +162,7 @@ async function runPipeline(
   }
 
   const tasks = new m.handles.TaskRegistry()
-  const wf = await m.type.defineTaskWorkflow(
+  const wf = await m.workflow.defineTaskWorkflow(
     defineTaskHandler('硬条件排除', () => async () => {
       if (job.exclude) return m.handles.taskResult.skip('硬条件排除')
     }),
@@ -214,7 +214,7 @@ describe('流水线接线（AC-007 / VAL-010：bun test 断言请求次数）', 
       return { status: 'decided', model: 'm', noul: 0.99 }
     }
     const tasks = new m.handles.TaskRegistry()
-    const wf = await m.type.defineTaskWorkflow(
+    const wf = await m.workflow.defineTaskWorkflow(
       tasks.jevDirection({
         stage: 'title',
         handoff: createJevStageHandoff(),
@@ -256,7 +256,7 @@ describe('流水线接线（AC-007 / VAL-010：bun test 断言请求次数）', 
     const seq: string[] = []
     const statistics = { reviewNeeded: 0, total: 0, success: 0, tasks: {} as Record<string, any> }
     const tasks = new m.handles.TaskRegistry()
-    const wf = await m.type.defineTaskWorkflow(
+    const wf = await m.workflow.defineTaskWorkflow(
       tasks.jevDirection({
         stage: 'title',
         handoff: createJevStageHandoff(),

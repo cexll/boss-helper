@@ -12,12 +12,6 @@ import type { JobStatus, Task, TaskContext, TaskResult } from './type'
 import { defineTaskHandler } from './type'
 import { loadSet, parseFiltering, rangeMatch, rangeMatchFormat, saveSet } from './utils'
 
-export class DependencyMissingError extends Error {
-  constructor(public taskId: string) {
-    super(`Task dependency missing: ${taskId}`)
-  }
-}
-
 export class HelperConfigError {
   constructor(
     public key: string,
