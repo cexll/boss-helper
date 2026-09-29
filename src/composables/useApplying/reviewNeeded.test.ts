@@ -295,6 +295,7 @@ test('同一岗位当日重复进入待复核只计一次（F-004）', () => {
   expect(first).toBe(true)
   expect(second).toBe(true) // 页面列表仍按 t6 语义重新记录
   expect(t.reviewNeeded).toBe(1) // 今日累计不再重复计
+  expect(t.date).toBe(DAY) // F-036 回归：同日重复记录不滚动统计行日期
   expect(reviewNeededStore.count()).toBe(1)
 })
 
@@ -320,6 +321,7 @@ test('跨日重置后同一岗位可再次计入（F-004）', () => {
   const bucket = t.reviewNeededCounted
   expect(bucket?.date).toBe(NEXT_DAY)
   expect(bucket?.countedKeys).toEqual(['a'])
+  expect(t.date).toBe(NEXT_DAY) // F-036：统计行日期随跨日重置滚动，归档行才不错日
 })
 
 test('去重状态随统计对象落盘，刷新后仍然生效（F-004）', () => {
@@ -351,16 +353,15 @@ test('页面列表清空时当日计数保留（F-003/F-004）', () => {
 
 test('缺省 today 时保持 t6 页面内语义（4 参契约不回归）', () => {
   const t = freshCounter()
-  expect(recordReviewNeeded({ key: 'a', jobName: '岗位-a' }, 'Jev 超时', 'jev_timeout', t)).toBe(
-    true,
-  )
+  const rec = (kind: ReviewNeededReasonKind) =>
+    recordReviewNeeded({ key: 'a', jobName: '岗位-a' }, '原因', kind, t)
+  expect(rec('jev_timeout')).toBe(true)
   reviewNeededStore.remove('a')
   // 移除后同一岗位再次进入：无日期键时按页面内口径重新计数（t6 行为）
-  expect(
-    recordReviewNeeded({ key: 'a', jobName: '岗位-a' }, 'Jev 不确定', 'jev_uncertain', t),
-  ).toBe(true)
+  expect(rec('jev_uncertain')).toBe(true)
   expect(t.reviewNeeded).toBe(2)
   expect(t.reviewNeededCounted).toBeUndefined()
+  expect(t.date).toBe(DAY) // F-036 回归：缺省 today（无 options）不得碰 date
 })
 
 // ===== F-003：真实 Statistics.vue 模板 + vue/compiler-sfc SSR 渲染证明 =====

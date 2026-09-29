@@ -56,6 +56,12 @@ export type ReviewNeededCounter = object & {
   reviewNeeded?: number
   /** 当日去重桶：挂在统计对象上，随统计对象一起落盘，因此跨页面/刷新保持。 */
   reviewNeededCounted?: ReviewNeededDayBucket
+  /**
+   * 统计行自身的日期。真实宿主是 src/types/formData.ts 的 Statistics（date 必填）；
+   * 本模块在跨日重置时把它滚到新的一天，使落盘行与当日桶同属一天（评审 F-036：
+   * 否则 useStatistics.updateStatistics 会按旧日期把这行归档成昨天）。
+   */
+  date?: string
 }
 
 /** recordReviewNeeded 的可注入项。 */
@@ -171,6 +177,9 @@ export function recordReviewNeeded(
       if (stored) statistics.reviewNeeded = 0
       bucket = { date: options.today, countedKeys: [] }
       statistics.reviewNeededCounted = bucket
+      // F-036：统计行日期与桶一起滚动；否则次日归档时按旧 date 落成昨天的历史行，
+      // 昨天那行里只剩今天的计数（清零语义不变，见上）。
+      statistics.date = options.today
     }
   }
   if (bucket) {
