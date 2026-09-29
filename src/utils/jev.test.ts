@@ -3,6 +3,7 @@ import { expect, mock, test } from 'bun:test'
 import {
   JEV_ASK_MESSAGE,
   JEV_BASE_URL,
+  JEV_DATA_MISSING_REASON,
   JEV_TIMEOUT_MS,
   askJev,
   askJevWithFallback,
@@ -357,6 +358,16 @@ test('FR-017：页面发消息 → 后台用存储的密钥执行请求 → 返�
   expect(
     Object.keys(JSON.parse(backgroundTransport.calls[0]!.init.body as string).state).sort(),
   ).toEqual(['job_description', 'job_title'])
+})
+test('F-035：中继 decided 判定数值必须有限数字；坏形回包改待复核、非对象仍抛错', async () => {
+  const send = (r: unknown) => createJevBackgroundSender(async () => r)
+  const p = buildJevRequestBody(job, question)
+  const missing = { status: 'reviewNeeded', reason: JEV_DATA_MISSING_REASON } as const
+  for (const noul of ['0.9', true, null, Number.NaN])
+    expect(await send({ status: 'decided', model: 'x', noul })(p)).toEqual(missing)
+  const ok = { status: 'decided', model: 'm', noul: 0.5 } as const
+  expect(await send(ok)(p)).toEqual(ok)
+  expect(await send(undefined)(p).catch((e: Error) => e.message)).toBe('扩展后台未响应 Jev 请求')
 })
 
 test('消息校验 fail-closed：state 出现第三个键时拒绝且不向 Jev 发起请求', async () => {

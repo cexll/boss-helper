@@ -128,6 +128,13 @@ function timeoutOutcome(): JevOutcome {
 /** 密钥读取失败（读取器拒绝）时的错误原因：与「未配置」区分，指向读取本身失败（t5 评审 F-006） */
 const KEY_READ_FAILED_REASON = '读取 Jev 密钥失败'
 
+/**
+ * 判定数值不可用时的待复核原因（单一出处）：直连 parseJevSuccess 与中继
+ * createJevBackgroundSender 的坏形回包共用同一句（评审 F-035 要求同因同语义）；
+ * 测试断言也引用它，避免文案漂移。
+ */
+export const JEV_DATA_MISSING_REASON = 'Jev 响应缺少模型标识或判定数值，已放入待复核'
+
 /** 组装一次调用的 `RequestInit`：密钥只进请求头，不进任何日志 */
 function buildRequestInit(apiKey: string, body: JevRequestBody, signal: AbortSignal): RequestInit {
   return {
@@ -234,7 +241,7 @@ function parseJevSuccess(parsed: unknown, questionId: string): JevOutcome {
   const body = parsed as { model?: unknown; answers?: Record<string, unknown> } | null
   const answer = body?.answers?.[questionId]
   if (typeof body?.model !== 'string' || !isNoulAnswer(answer)) {
-    return { status: 'reviewNeeded', reason: 'Jev 响应缺少模型标识或判定数值，已放入待复核' }
+    return { status: 'reviewNeeded', reason: JEV_DATA_MISSING_REASON }
   }
 
   return { status: 'decided', model: body.model, noul: answer.noul }
@@ -454,10 +461,23 @@ export function createJevBackgroundSender(send: JevMessageSender): JevBackground
   return async (payload: JevRequestBody) => {
     const response = await send({ type: JEV_ASK_MESSAGE, payload })
     if (!isJevOutcome(response)) {
+      // F-035：decided 形状但判定数值不可用（noul 非有限数字）与直连路径同因同语义
+      // 收敛为待复核；其余（非对象 / 形状完全不符）才是「后台未响应」。
+      if (isDecidedShape(response)) {
+        return { status: 'reviewNeeded', reason: JEV_DATA_MISSING_REASON }
+      }
       throw new Error('扩展后台未响应 Jev 请求')
     }
     return response
   }
+}
+
+function isDecidedShape(value: unknown): boolean {
+  return (
+    typeof value === 'object' &&
+    value !== null &&
+    (value as { status?: unknown }).status === 'decided'
+  )
 }
 
 /** 后台执行判断的 page-side 入口：发消息等结果，后台失败由后台如实说明 */
@@ -469,7 +489,12 @@ function isJevOutcome(value: unknown): value is JevOutcome {
   }
   const status = (value as { status?: unknown }).status
   if (status === 'decided') {
-    return typeof (value as { model?: unknown }).model === 'string'
+    // F-035：与直连 parseJevSuccess → isNoulAnswer 同口径——model 是字符串且
+    // noul 必须是有限数字，否则脏值会被 bandOf 强转成明确判定并写进会话缓存。
+    const body = value as { model?: unknown; noul?: unknown }
+    return (
+      typeof body.model === 'string' && typeof body.noul === 'number' && Number.isFinite(body.noul)
+    )
   }
   if (status === 'reviewNeeded' || status === 'error') {
     return typeof (value as { reason?: unknown }).reason === 'string'
