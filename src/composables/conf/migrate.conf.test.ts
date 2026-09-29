@@ -1,6 +1,6 @@
 import { beforeEach, describe, expect, mock, test } from 'bun:test'
 
-import type { ConfigLevel } from '@/types/formData'
+import type { ConfigLevel, JevConfig } from '@/types/formData'
 
 import type * as ConfNamespace from './index'
 import { defaultFormData } from './info'
@@ -164,6 +164,7 @@ describe('useConf.confSaving：写入与失败', () => {
     toasts = []
     failGet = false
     failSet = false
+    importPayload = undefined
   })
 
   test('成功：三处存储键写入且提示保存成功', async () => {
@@ -176,6 +177,43 @@ describe('useConf.confSaving：写入与失败', () => {
       (storageMap.get(FORM_DATA_KEY) as { deliveryLimit: { value: number } }).deliveryLimit.value,
     ).toBe(120)
     expect(toasts.some((t) => t.title === '保存成功' && t.color === 'success')).toBe(true)
+  })
+
+  test('F-037：空方向的启用态 Jev 在落盘门前强制回禁用', async () => {
+    const conf = await freshConf()
+    conf.formData.jev = { enable: true, targetDirection: '' }
+    await conf.confSaving()
+    expect((storageMap.get(FORM_DATA_KEY) as { jev?: JevConfig }).jev).toEqual({
+      enable: false,
+      targetDirection: '',
+    })
+  })
+
+  test('F-037 回归：已填方向的启用态原样落盘；无 jev 键不新增键', async () => {
+    const conf = await freshConf()
+    conf.formData.jev = { enable: true, targetDirection: '前端开发' }
+    await conf.confSaving()
+    expect((storageMap.get(FORM_DATA_KEY) as { jev?: JevConfig }).jev).toEqual({
+      enable: true,
+      targetDirection: '前端开发',
+    })
+
+    const noJev = await freshConf()
+    delete noJev.formData.jev
+    await noJev.confSaving()
+    expect('jev' in (storageMap.get(FORM_DATA_KEY) as Record<string, unknown>)).toBe(false)
+  })
+
+  test('F-037：导入坏形状（启用 + 空方向）后手动保存归一化落盘', async () => {
+    importPayload = { version: '20260718', jev: { enable: true, targetDirection: '   ' } }
+    const conf = await freshConf()
+    await conf.confImport()
+    expect(conf.formData.jev).toEqual({ enable: true, targetDirection: '   ' }) // 读路径不改语义（F-023/F-024）
+    await conf.confSaving()
+    expect((storageMap.get(FORM_DATA_KEY) as { jev?: JevConfig }).jev).toEqual({
+      enable: false,
+      targetDirection: '   ',
+    })
   })
 
   test('写失败：toast 保存失败并原样抛出存储错误', async () => {

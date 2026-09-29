@@ -49,6 +49,24 @@ const formDataKey = () => {
   }
   return 'local:web-geek-job-FormData'
 }
+/**
+ * 落盘前的 Jev 归一（评审 F-037）：`{enable:true, targetDirection:''}` 这类良构坏形状
+ * 会被读路径 normalizeJevConfig 按既有决定原样保留（F-023/F-024），再经 Config.vue
+ * 「保存配置」/LLMPromptEdit/AI 页 change() 等任意 confSaving 调用原样写进存储。
+ * 这里在持久边界 fail-closed（AC-006：空方向不得以启用态持久化），下一次保存即修正存量。
+ * 密钥不在此校验——按凭证纪律不进 FormData（formData.ts 注释），判定门 canEnableJev
+ * 在判定时已双值拒判。只归一化 formData 本体；presets 是惰性副本，switchPreset 应用后
+ * 仍要走 confSaving 才落盘（届时同样被归一化），不额外遍历。
+ */
+function normalizeJevForPersist(data: FormData): void {
+  const jev = data.jev
+  if (!jev || jev.enable !== true) {
+    return
+  }
+  if (typeof jev.targetDirection === 'string' && jev.targetDirection.trim() === '') {
+    jev.enable = false
+  }
+}
 
 watchThrottled(
   formData,
@@ -210,6 +228,7 @@ export const useConf = () => {
 
   async function confSaving() {
     try {
+      normalizeJevForPersist(formData)
       await counter.storageSet(formDataKey(), jsonClone(formData))
       await counter.storageSet(formDataPresetKey, jsonClone(formDataPreset.value))
       await counter.storageSet(formDataPresetsKey, jsonClone(formDataPresets.value))
