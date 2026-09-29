@@ -257,13 +257,13 @@ baseline:
   frozen_on: '2026-09-21'
   findings_file: '.baseline/findings.json'
   counts: # ceilings — CI fails on any increase (scripts/check-baseline.mjs)
-    lint_findings: 62 # RECORD-PENDING: set by --record in Stage 5
+    lint_findings: 35 # lowered in PR ben/jev-job-filter-m1 (62->35, was RECORD-PENDING)
     typecheck_errors: 8 # RECORD-PENDING: set by --record in Stage 5
-    format_violations: 21 # RECORD-PENDING: set by --record in Stage 5
+    format_violations: 0 # lowered in PR ben/jev-job-filter-m1 (21->0, was RECORD-PENDING)
     duplicate_code: 5 # measured: jscpd --min-tokens 70 at rev (0.13% dup lines)
-    dead_code: 23 # RECORD-PENDING: set by --record in Stage 5
+    dead_code: 22 # lowered in PR ben/jev-job-filter-m1 (23->22, was RECORD-PENDING)
     size_violations: 9 # RECORD-PENDING: set by --record in Stage 5
-    legacy_untested_count: 42 # RECORD-PENDING: set by --record in Stage 5
+    legacy_untested_count: 22 # lowered in PR ben/jev-job-filter-m1 (42->22, was RECORD-PENDING); list unchanged — F-040 chatModel/runtime remain flagged by the membership check
   legacy_untested_files:
     - src/composables/conf/index.ts
     - src/composables/conf/info.ts

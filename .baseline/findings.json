@@ -1,15 +1,15 @@
 {
   "rev": "12ff171ec05a4dac52a59893697217a7706ed62f",
-  "rev_note": "counts were measured in the working tree at this commit (tree dirty — includes uncommitted edits)",
+  "rev_note": "counts were measured in the working tree at this commit (tree dirty — includes uncommitted edits); ceilings manually lowered in PR (lint 62->35, format 21->0, dead 23->22, legacy_untested 42->22); typecheck/duplicate/list untouched — F-040 debt stays flagged by the membership check",
   "frozen_on": "2026-09-21",
   "counts": {
-    "lint_findings": 62,
+    "lint_findings": 35,
     "typecheck_errors": 8,
-    "format_violations": 21,
+    "format_violations": 0,
     "duplicate_code": 5,
-    "dead_code": 23,
+    "dead_code": 22,
     "size_violations": 9,
-    "legacy_untested_count": 42
+    "legacy_untested_count": 22
   },
   "tuples": {
     "lint:eslint(no-unused-vars)\u0000scripts/check-lockfile-consistency.mjs": 1,
