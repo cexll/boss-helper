@@ -1,16 +1,16 @@
+import { keywordGroupEnabled, keywordRuleOf } from '@/composables/conf/migrate'
+import { getCurDay } from '@/utils'
 import { renderTemplate } from '@/utils/ai'
 import type { HelperContext } from '~/composables/useHelper'
 
 import { sameCompanyKey, sameHrKey } from '../../entrypoints/boss/requests'
-import type { JobStatus, TaskContext, TaskResult } from './type'
+import type { JevAskFn, JevDirectionDeps, JevStage, JevStageHandoff } from './jevDirection'
+import { judgeJevDirection } from './jevDirection'
+import { evaluateKeywordRule } from './keywordMatch'
+import { recordReviewNeeded } from './reviewNeeded'
+import type { JobStatus, Task, TaskContext, TaskResult } from './type'
 import { defineTaskHandler } from './type'
 import { loadSet, parseFiltering, rangeMatch, rangeMatchFormat, saveSet } from './utils'
-
-export class DependencyMissingError extends Error {
-  constructor(public taskId: string) {
-    super(`Task dependency missing: ${taskId}`)
-  }
-}
 
 export class HelperConfigError {
   constructor(
@@ -66,7 +66,69 @@ export const taskResult = {
   }),
 }
 
+/**
+ * Jev 方向判断处理器的注入项（t8）：判定语义全在 jevDirection.ts，本类只做流水线委托。
+ * `stage` 决定注册成哪个步骤：title 在岗位详情获取之前（标题判不相关则不取详情），
+ * recheck 在详情阶段本地硬条件之后、AI 筛选之前（复判仍不确定则待复核）。
+ */
+export interface JevDirectionOptions {
+  stage: JevStage
+  askJev: JevAskFn
+  handoff?: JevStageHandoff
+  getApiKey?: JevDirectionDeps['getApiKey']
+  deps?: string[]
+}
+
 export class TaskRegistry<C extends HelperContext<C, T, S>, T, S = {}> {
+  /**
+   * Jev 方向判断（t8 / FR-012）：判定语义全部在 jevDirection.ts，这里只做流水线委托。
+   * title 阶段注册在岗位详情获取之前（标题判不相关则不取详情、不调 AI 筛选）；
+   * recheck 阶段注册在详情阶段本地硬条件之后、AI 筛选之前（复判不确定 → 待复核）。
+   * 未启用（FR-010）时不注册任务：零 Jev 请求、零待复核、不拦截。
+   */
+  jevDirection = (opt: JevDirectionOptions): Task<C, T, S> => {
+    const { stage, askJev, handoff, getApiKey, deps } = opt
+    const id = stage === 'title' ? 'Jev方向判断' : 'Jev方向复判'
+    return defineTaskHandler<C, T, S>(
+      id,
+      (ctx) => {
+        if (!ctx.helper.conf.formData.jev?.enable) {
+          return
+        }
+        return async (ctx, { jobData }) => {
+          const jevDeps: JevDirectionDeps = {
+            stage,
+            askJev,
+            getTargetDirection: () => ctx.helper.conf.formData.jev?.targetDirection,
+            recordReviewNeeded,
+            statistics: ctx.helper.statistics.todayData.value,
+            getToday: () => getCurDay(ctx.now),
+            getApiKey,
+            handoff,
+          }
+          const verdict = await judgeJevDirection(
+            {
+              key: jobData.key,
+              jobName: jobData.jobName,
+              jobDescription: jobData.jobDescription,
+            },
+            jevDeps,
+          )
+          if (verdict.decision === 'pass') {
+            return
+          }
+          // skip（明确不相关）与 reviewNeeded（模块内已记账）都终止本轮流水线：
+          // 不投递、不写排除缓存、不进 AI 筛选（FR-012 / FR-013 / AC-007）
+          return taskResult.skip(verdict.reason)
+        }
+      },
+      {
+        state: 'ai',
+        stateMsg: stage === 'title' ? 'Jev方向判断中' : 'Jev方向复判中',
+      },
+    )({ deps: deps ?? [] })
+  }
+
   SameCompanyFilter = defineTaskHandler<C, T, S>(
     '重复沟通-相同公司',
     async (ctx) => {
@@ -148,23 +210,31 @@ export class TaskRegistry<C extends HelperContext<C, T, S>, T, S = {}> {
   )
 
   jobTitle = defineTaskHandler<C, T, S>('岗位名', (ctx) => {
-    if (!ctx.helper.conf.formData.jobTitle.enable) {
+    const field = ctx.helper.conf.formData.jobTitle
+    // FR-002：空规则（或冲突词）不能启用——enable 开着但组为空时按未启用处理，
+    // 不注册任务（筛选行为完全由新引擎给出）。
+    if (!keywordGroupEnabled(field)) {
       return
     }
-    return async (_ctx, { jobData: data }) => {
-      const text = data.jobName.toLowerCase()
-      if (!text) return taskResult.skip('岗位名为空')
-      for (const x of ctx.helper.conf.formData.jobTitle.value) {
-        if (text.includes(x.toLowerCase())) {
-          if (ctx.helper.conf.formData.jobTitle.include) {
-            return
-          }
-          return taskResult.skip(`岗位名含有排除关键词 [${x}]`)
-        }
+    return async (ctx, { jobData: data }) => {
+      const text = data.jobName?.toLowerCase() ?? ''
+      if (!text) {
+        recordReviewNeeded(
+          data,
+          '岗位名为空',
+          'missing_field',
+          ctx.helper.statistics.todayData.value,
+          // F-025：缺字段记账与 fx-006 同一当日去重口径（缺 {today} 时列表清空后会重复累计）
+          { today: getCurDay(ctx.now) },
+        )
+        return taskResult.skip('岗位名为空')
       }
-      if (ctx.helper.conf.formData.jobTitle.include) {
-        return taskResult.skip('岗位名不包含关键词')
+      const decision = evaluateKeywordRule(text, keywordRuleOf(field))
+      if (!decision.skip) return
+      if (decision.reason === 'excluded') {
+        return taskResult.skip(`岗位名含有排除关键词 [${decision.keyword}]`)
       }
+      return taskResult.skip('岗位名不包含关键词')
     }
   })
 
@@ -240,26 +310,32 @@ export class TaskRegistry<C extends HelperContext<C, T, S>, T, S = {}> {
     }
   })
   jobContent = defineTaskHandler<C, T, S>('工作内容', (ctx) => {
-    if (!ctx.helper.conf.formData.jobContent.enable) {
+    const field = ctx.helper.conf.formData.jobContent
+    // FR-002：空规则（或冲突词）不能启用，enable 开着但组为空时按未启用处理。
+    if (!keywordGroupEnabled(field)) {
       return
     }
     return async (ctx, { jobData }) => {
-      const content = jobData.jobDescription.toLowerCase()
-      for (const x of ctx.helper.conf.formData.jobContent.value) {
-        if (!x) {
-          continue
-        }
-        const re = new RegExp(`(?<!(不|无).{0,5})${x.toLowerCase()}(?!系统|软件|工具|服务)`)
-        if (content != null && re.test(content)) {
-          if (ctx.helper.conf.formData.jobContent.include) {
-            return
-          }
-          return taskResult.skip(`工作内容含有排除关键词 [${x}]`)
-        }
+      const content = jobData.jobDescription?.toLowerCase()
+      if (!content) {
+        recordReviewNeeded(
+          jobData,
+          '工作内容为空',
+          'missing_field',
+          ctx.helper.statistics.todayData.value,
+          // F-025：同上，缺字段路径统一补当日键
+          { today: getCurDay(ctx.now) },
+        )
+        return taskResult.skip('工作内容为空')
       }
-      if (ctx.helper.conf.formData.jobContent.include) {
-        return taskResult.skip('工作内容中不包含关键词')
+      const decision = evaluateKeywordRule(content, keywordRuleOf(field), {
+        negateExclusions: true,
+      })
+      if (!decision.skip) return
+      if (decision.reason === 'excluded') {
+        return taskResult.skip(`工作内容含有排除关键词 [${decision.keyword}]`)
       }
+      return taskResult.skip('工作内容中不包含关键词')
     }
   })
 

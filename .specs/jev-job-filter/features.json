@@ -1,0 +1,1087 @@
+{
+  "mission": "jev-job-filter",
+  "generatedBy": "devflow.cjs compile",
+  "generatedAt": "2026-09-26",
+  "statusNote": "This is the plan and holds no status. Live status is in <spec-dir>/missions/runtime.json (gitignored, written only by devflow). Read it with: devflow.cjs brief --mission-dir <spec-dir>/missions — that answers \"is it done\", read-only. Never edit this file by hand: append with 'devflow.cjs amend --add-feature', and drop work with 'devflow.cjs cancel'.",
+  "features": [
+    {
+      "id": "a-final",
+      "description": "在最终构建上逐条验证全部断言",
+      "dependsOn": [
+        "v-m1",
+        "v-m2",
+        "t11",
+        "p1",
+        "p2",
+        "t0",
+        "t1",
+        "t10",
+        "t12",
+        "t13",
+        "t2",
+        "t3",
+        "t4",
+        "t5",
+        "t6",
+        "t7",
+        "t8",
+        "t9"
+      ],
+      "milestone": "acceptance",
+      "touches": [],
+      "fulfills": [],
+      "proves": [
+        "VAL-001",
+        "VAL-002",
+        "VAL-003",
+        "VAL-004",
+        "VAL-005",
+        "VAL-006",
+        "VAL-007",
+        "VAL-008",
+        "VAL-009",
+        "VAL-010",
+        "VAL-011",
+        "VAL-012",
+        "VAL-013",
+        "VAL-014",
+        "VAL-015",
+        "VAL-016",
+        "VAL-017"
+      ],
+      "reportOnly": true,
+      "validatorKind": "acceptance",
+      "skillName": "user-validate-flow",
+      "expectedBehavior": ["每条断言有结论与证据", "npm run build:smoke 退出码 0"],
+      "origin": "plan",
+      "addressesItemId": []
+    },
+    {
+      "id": "a-promote",
+      "description": "把 a-final 证实通过的断言写成本仓库可复用的流程契约，供后续回归运行",
+      "dependsOn": ["a-final"],
+      "milestone": "acceptance",
+      "touches": [".agents/qa/"],
+      "fulfills": [],
+      "verification": {
+        "mode": "steps",
+        "steps": [
+          {
+            "id": "check",
+            "command": "bun run test",
+            "expectedExit": "zero"
+          }
+        ]
+      },
+      "skillName": "tdd",
+      "expectedBehavior": [
+        "`.agents/qa/flows/` 下每个流程契约含五节且可被后续运行直接执行",
+        "仅 a-final 判为 pass 的断言被写成可回归流程，其余标注真实状态"
+      ],
+      "origin": "plan",
+      "addressesItemId": []
+    },
+    {
+      "id": "p1",
+      "description": "在真实环境只读实测 Jev 可达性、请求响应形态、超时与不确定结果，把脱敏实测记录提交为仓库文档",
+      "dependsOn": [],
+      "milestone": "m0-probe",
+      "touches": ["docs/probes/jev-p1-record.md"],
+      "fulfills": ["VAL-016"],
+      "verification": {
+        "mode": "steps",
+        "steps": [
+          {
+            "id": "check",
+            "command": "bun run test",
+            "expectedExit": "zero"
+          }
+        ]
+      },
+      "skillName": "tdd",
+      "expectedBehavior": [
+        "记录插件页面与扩展后台两条路径各自是否可达",
+        "记录实际发出的请求体只含岗位标题与职位描述",
+        "超时秒数、不确定判定、缓存期限给出建议值并请用户确认（结论记录在交付文件中）"
+      ],
+      "origin": "plan",
+      "addressesItemId": []
+    },
+    {
+      "id": "p2",
+      "description": "实测切换标签页后流水线计时与请求被浏览器节流的程度，把脱敏实测记录提交为仓库文档",
+      "dependsOn": [],
+      "milestone": "m0-probe",
+      "touches": ["docs/probes/throttle-p2-record.md"],
+      "fulfills": ["VAL-017"],
+      "verification": {
+        "mode": "steps",
+        "steps": [
+          {
+            "id": "check",
+            "command": "bun run test",
+            "expectedExit": "zero"
+          }
+        ]
+      },
+      "skillName": "tdd",
+      "expectedBehavior": ["记录各时长下的实际间隔与暂停情况", "给出 t11 应提示的判定条件"],
+      "origin": "plan",
+      "addressesItemId": []
+    },
+    {
+      "id": "t0",
+      "description": "把岗位名与职位描述现有匹配逻辑移入有测试的独立模块，处理器薄委托，行为完全不变",
+      "dependsOn": [],
+      "milestone": "m1-keyword",
+      "touches": [
+        "src/composables/useApplying/keywordMatch.ts",
+        "src/composables/useApplying/keywordMatch.test.ts",
+        "src/composables/useApplying/handles.ts"
+      ],
+      "fulfills": [],
+      "verification": {
+        "mode": "steps",
+        "steps": [
+          {
+            "id": "check",
+            "command": "bun test ./src",
+            "expectedExit": "zero"
+          }
+        ]
+      },
+      "skillName": "tdd",
+      "expectedBehavior": [
+        "现有测试全部原样通过",
+        "新模块刻画测试覆盖现有包含/排除、否定词与后缀规则",
+        "新模块行覆盖率 ≥85%"
+      ],
+      "origin": "plan",
+      "addressesItemId": []
+    },
+    {
+      "id": "t1",
+      "description": "实现包含组与排除组并存、任一或全部满足、英文完整词与版本号语义的匹配",
+      "dependsOn": ["t0"],
+      "milestone": "m1-keyword",
+      "touches": [
+        "src/composables/useApplying/keywordMatch.ts",
+        "src/composables/useApplying/keywordMatch.test.ts"
+      ],
+      "fulfills": ["VAL-001", "VAL-002"],
+      "verification": {
+        "mode": "steps",
+        "steps": [
+          {
+            "id": "check",
+            "command": "bun test ./src/composables/useApplying",
+            "expectedExit": "zero"
+          }
+        ]
+      },
+      "skillName": "tdd",
+      "expectedBehavior": [
+        "“JavaScript 外包”被拒、“Java 开发”“Java8 开发”通过",
+        "C 不命中 C++/C#，React 命中“React开发”",
+        "只设排除组时未命中即通过"
+      ],
+      "origin": "plan",
+      "addressesItemId": []
+    },
+    {
+      "id": "t10",
+      "description": "待复核列表支持重试、跳过、人工确认方向",
+      "dependsOn": ["t6", "t9"],
+      "milestone": "m2-jev",
+      "touches": [
+        "src/composables/useApplying/reviewNeeded.ts",
+        "src/composables/useApplying/reviewNeeded.test.ts",
+        "src/composables/useApplying/jevCache.ts",
+        "src/components/Tabs/Statistics.vue"
+      ],
+      "fulfills": ["VAL-012"],
+      "verification": {
+        "mode": "steps",
+        "steps": [
+          {
+            "id": "check",
+            "command": "bun test ./src",
+            "expectedExit": "zero"
+          }
+        ]
+      },
+      "skillName": "tdd",
+      "expectedBehavior": [
+        "重试产生新的 Jev 请求",
+        "人工确认不放行同名其他岗位",
+        "确认后命中排除词仍不投递"
+      ],
+      "origin": "plan",
+      "addressesItemId": []
+    },
+    {
+      "id": "t11",
+      "description": "切换标签页后继续运行，受浏览器限制时如实提示，间隔与并发不变",
+      "dependsOn": ["p2", "t8"],
+      "milestone": "m3-runtime",
+      "touches": [
+        "src/entrypoints/boss/runtime.ts",
+        "src/composables/useApplying/backgroundState.ts",
+        "src/composables/useApplying/backgroundState.test.ts"
+      ],
+      "fulfills": ["VAL-013"],
+      "verification": {
+        "mode": "steps",
+        "steps": [
+          {
+            "id": "check",
+            "command": "bun test ./src",
+            "expectedExit": "zero"
+          }
+        ]
+      },
+      "skillName": "tdd",
+      "expectedBehavior": ["被节流时出现提示", "间隔不短于现有下限、并发不增加"],
+      "origin": "plan",
+      "addressesItemId": []
+    },
+    {
+      "id": "t12",
+      "description": "关于页保留精简版本并移除赞赏区块",
+      "dependsOn": [],
+      "milestone": "m1-keyword",
+      "touches": ["src/App.vue", "src/components/Tabs/About.vue"],
+      "fulfills": ["VAL-014"],
+      "skillName": "tdd",
+      "expectedBehavior": ["关于页无赞赏区块", "其他标签页正常"],
+      "origin": "plan",
+      "addressesItemId": []
+    },
+    {
+      "id": "t13",
+      "description": "以构建产物清单与入口断言认领 VAL-015，纳入常规验证命令",
+      "dependsOn": ["t6"],
+      "milestone": "acceptance",
+      "touches": ["package.json"],
+      "fulfills": ["VAL-015"],
+      "verification": {
+        "mode": "steps",
+        "steps": [
+          {
+            "id": "check",
+            "command": "bun run build:smoke",
+            "expectedExit": "zero"
+          }
+        ]
+      },
+      "skillName": "tdd",
+      "expectedBehavior": [
+        "`bun run build:smoke` 退出码 0 且报告列出 manifest 与入口断言",
+        "VAL-015 由本任务认领，构建产物清单与入口断言可重复验证"
+      ],
+      "origin": "plan",
+      "addressesItemId": []
+    },
+    {
+      "id": "t2",
+      "description": "否定词只作用于职位描述排除词，取消后缀阻止规则",
+      "dependsOn": ["t1"],
+      "milestone": "m1-keyword",
+      "touches": [
+        "src/composables/useApplying/keywordMatch.ts",
+        "src/composables/useApplying/keywordMatch.test.ts"
+      ],
+      "fulfills": ["VAL-003"],
+      "verification": {
+        "mode": "steps",
+        "steps": [
+          {
+            "id": "check",
+            "command": "bun test ./src/composables/useApplying",
+            "expectedExit": "zero"
+          }
+        ]
+      },
+      "skillName": "tdd",
+      "expectedBehavior": [
+        "“无外包”不被排除词“外包”拒绝",
+        "“不加班，Java开发”命中包含词 Java",
+        "“Java系统开发”命中包含词 Java"
+      ],
+      "origin": "plan",
+      "addressesItemId": []
+    },
+    {
+      "id": "t3",
+      "description": "新增关键词组配置字段，旧配置原样迁移，筛选接入新引擎，缺字段进入待复核",
+      "dependsOn": ["t2", "t6"],
+      "milestone": "m1-keyword",
+      "touches": [
+        "src/types/formData.ts",
+        "src/composables/conf/info.ts",
+        "src/composables/conf/index.ts",
+        "src/composables/conf/migrate.test.ts",
+        "src/composables/useApplying/handles.ts"
+      ],
+      "fulfills": ["VAL-005"],
+      "verification": {
+        "mode": "steps",
+        "steps": [
+          {
+            "id": "check",
+            "command": "bun test ./src",
+            "expectedExit": "zero"
+          }
+        ]
+      },
+      "skillName": "tdd",
+      "expectedBehavior": [
+        "旧配置加载后字段正确映射",
+        "同一批不涉及语义变化的岗位，新旧结果一致（以 t0 参照实现对照）",
+        "缺岗位名时进入待复核而非跳过"
+      ],
+      "origin": "plan",
+      "addressesItemId": []
+    },
+    {
+      "id": "t4",
+      "description": "设置页提供两组关键词输入、任一/全部切换、候选词与启用校验",
+      "dependsOn": ["t3"],
+      "milestone": "m1-keyword",
+      "touches": [
+        "src/components/Tabs/ConfigItem/ConfigItem.vue",
+        "src/components/Tabs/ConfigItem/Form/FormSelect.vue",
+        "src/composables/useApplying/keywordRules.ts",
+        "src/composables/useApplying/keywordRules.test.ts"
+      ],
+      "fulfills": ["VAL-004", "VAL-006"],
+      "verification": {
+        "mode": "steps",
+        "steps": [
+          {
+            "id": "check",
+            "command": "bun test ./src",
+            "expectedExit": "zero"
+          }
+        ]
+      },
+      "skillName": "tdd",
+      "expectedBehavior": [
+        "空规则与冲突时启用开关不可用并有提示",
+        "候选词只来自用过的关键词",
+        "选中候选前不影响筛选"
+      ],
+      "origin": "plan",
+      "addressesItemId": []
+    },
+    {
+      "id": "t5",
+      "description": "按用途组装 Jev 请求，只发标题与职位描述，必要时经扩展后台发起，超时进入待复核",
+      "dependsOn": ["p1", "t6"],
+      "milestone": "m2-jev",
+      "touches": [
+        "src/utils/jev.ts",
+        "src/utils/jev.test.ts",
+        "src/message/index.ts",
+        "src/message/background.ts",
+        "src/entrypoints/background.ts"
+      ],
+      "fulfills": ["VAL-009"],
+      "verification": {
+        "mode": "steps",
+        "steps": [
+          {
+            "id": "check",
+            "command": "bun test ./src",
+            "expectedExit": "zero"
+          }
+        ]
+      },
+      "skillName": "tdd",
+      "expectedBehavior": [
+        "请求体断言只含标题与职位描述",
+        "超时返回待复核",
+        "不可达时返回明确原因且不调用其他模型"
+      ],
+      "origin": "plan",
+      "addressesItemId": []
+    },
+    {
+      "id": "t6",
+      "description": "新增待复核处置：当次不投递、不记排除、不缓存，统计单独计数，页面内列表展示",
+      "dependsOn": [],
+      "milestone": "m1-keyword",
+      "touches": [
+        "src/composables/useApplying/type.ts",
+        "src/composables/useApplying/index.ts",
+        "src/composables/useApplying/reviewNeeded.ts",
+        "src/composables/useApplying/reviewNeeded.test.ts",
+        "src/composables/useStatistics.ts",
+        "src/types/formData.ts",
+        "src/components/Tabs/Statistics.vue"
+      ],
+      "fulfills": ["VAL-007"],
+      "verification": {
+        "mode": "steps",
+        "steps": [
+          {
+            "id": "check",
+            "command": "bun test ./src",
+            "expectedExit": "zero"
+          }
+        ]
+      },
+      "skillName": "tdd",
+      "expectedBehavior": [
+        "待复核岗位不投递、不写入任何排除缓存",
+        "统计待复核计数加一且旧统计可加载",
+        "页面列表显示待复核岗位与原因"
+      ],
+      "origin": "plan",
+      "addressesItemId": []
+    },
+    {
+      "id": "t7",
+      "description": "新增 Jev 密钥与目标方向配置，缺一不能启用，启用时展示接收服务并取得授权",
+      "dependsOn": ["p1", "t3"],
+      "milestone": "m2-jev",
+      "touches": [
+        "src/types/formData.ts",
+        "src/composables/conf/info.ts",
+        "src/components/Tabs/AI.vue"
+      ],
+      "fulfills": ["VAL-008"],
+      "verification": {
+        "mode": "steps",
+        "steps": [
+          {
+            "id": "check",
+            "command": "bun test ./src",
+            "expectedExit": "zero"
+          }
+        ]
+      },
+      "skillName": "tdd",
+      "expectedBehavior": [
+        "缺密钥或目标时不能启用",
+        "启用时展示接收服务与发送字段",
+        "旧配置加载后 Jev 默认关闭"
+      ],
+      "origin": "plan",
+      "addressesItemId": []
+    },
+    {
+      "id": "t8",
+      "description": "本地筛选先行，Jev 先判标题、必要时详情后复判，排在 AI 筛选之前",
+      "dependsOn": ["t3", "t5", "t7"],
+      "milestone": "m2-jev",
+      "touches": [
+        "src/entrypoints/boss/delivery.ts",
+        "src/composables/useApplying/handles.ts",
+        "src/composables/useApplying/jevDirection.ts",
+        "src/composables/useApplying/jevDirection.test.ts"
+      ],
+      "fulfills": ["VAL-010"],
+      "verification": {
+        "mode": "steps",
+        "steps": [
+          {
+            "id": "check",
+            "command": "bun test ./src",
+            "expectedExit": "zero"
+          }
+        ]
+      },
+      "skillName": "tdd",
+      "expectedBehavior": [
+        "硬条件排除的岗位无 Jev 请求",
+        "标题判不相关时无详情请求、无 AI 筛选调用",
+        "复判不确定进入待复核"
+      ],
+      "origin": "plan",
+      "addressesItemId": []
+    },
+    {
+      "id": "t9",
+      "description": "按岗位与判定依据缓存 Jev 明确结果，判定依据变化即失效",
+      "dependsOn": ["t8"],
+      "milestone": "m2-jev",
+      "touches": [
+        "src/composables/useApplying/jevDirection.ts",
+        "src/composables/useApplying/jevDirection.test.ts",
+        "src/composables/useApplying/jevCache.ts",
+        "src/composables/useApplying/jevCache.test.ts"
+      ],
+      "fulfills": ["VAL-011"],
+      "verification": {
+        "mode": "steps",
+        "steps": [
+          {
+            "id": "check",
+            "command": "bun test ./src",
+            "expectedExit": "zero"
+          }
+        ]
+      },
+      "skillName": "tdd",
+      "expectedBehavior": [
+        "同岗位同依据第二次不请求 Jev",
+        "修改目标方向后重新请求",
+        "待复核结果不写缓存"
+      ],
+      "origin": "plan",
+      "addressesItemId": []
+    },
+    {
+      "id": "v-m1",
+      "description": "通过真实界面与测试逐条验证 m1 断言并出具报告",
+      "dependsOn": ["t0", "t1", "t2", "t3", "t4", "t6", "t12"],
+      "milestone": "m1-keyword",
+      "touches": [],
+      "fulfills": [],
+      "proves": [
+        "VAL-001",
+        "VAL-002",
+        "VAL-003",
+        "VAL-004",
+        "VAL-005",
+        "VAL-006",
+        "VAL-007",
+        "VAL-014"
+      ],
+      "reportOnly": true,
+      "skillName": "user-validate-flow",
+      "expectedBehavior": ["每条断言有结论与证据"],
+      "origin": "plan",
+      "addressesItemId": []
+    },
+    {
+      "id": "v-m2",
+      "description": "逐条验证 m2 断言并出具报告",
+      "dependsOn": ["t5", "t7", "t8", "t9", "t10"],
+      "milestone": "m2-jev",
+      "touches": [],
+      "fulfills": [],
+      "proves": ["VAL-008", "VAL-009", "VAL-010", "VAL-011", "VAL-012"],
+      "reportOnly": true,
+      "skillName": "user-validate-flow",
+      "expectedBehavior": ["每条断言有结论与证据"],
+      "origin": "plan",
+      "addressesItemId": []
+    },
+    {
+      "dependsOn": ["t0"],
+      "touches": ["package.json", "bun.lock", "tsconfig.json"],
+      "fulfills": [],
+      "expectedBehavior": [
+        "bun add -d @types/bun 后 bun run check 的错误清单中不再出现来自 *.test.ts 的 TS2307 'bun:test'（其余 8 个遗留错误保持不变）",
+        "bun run test 与 bun run check:baseline 中 typecheck 元组的 test 文件相关条目不再新增（现有基线只降不升）"
+      ],
+      "addressesItemId": [],
+      "id": "fx-001",
+      "description": "为测试类型安装 @types/bun（AGENTS.md Note 2 的已知修法），消除 keywordMatch.test.ts 等测试文件的 TS2307 遗留模式",
+      "milestone": "m1-keyword",
+      "skillName": "tdd",
+      "verification": {
+        "mode": "steps",
+        "steps": [
+          {
+            "id": "check",
+            "command": "bun run test",
+            "expectedExit": "zero"
+          },
+          {
+            "id": "static",
+            "command": "bun run fmt:check",
+            "expectedExit": "zero"
+          }
+        ]
+      },
+      "cause": {
+        "kind": "gate",
+        "command": "bun run check:baseline",
+        "milestone": "m1-keyword"
+      },
+      "origin": "amend"
+    },
+    {
+      "dependsOn": ["p1"],
+      "touches": ["docs/probes/jev-p1-record.md"],
+      "fulfills": [],
+      "expectedBehavior": [
+        "§6.2 的证据句数值与 §5 标定表完全一致（明确 ≤0.07 / ≥0.96；含糊 0.24–0.32），不再出现与自身表格矛盾的区间或未定义类目",
+        "（0.2, 0.8）待复核带建议及其理由不变；不改 §4/§5 的任何测量数据"
+      ],
+      "addressesItemId": ["F-001"],
+      "id": "fx-002",
+      "description": "修正 p1 实测记录 §6.2 证据句：与 §5 标定表一致（明确样本 ≤0.07 / ≥0.96，含糊样本 0.24–0.32），删除未定义的\"纯别名\"类目改为\"空 state (n=5)\"",
+      "milestone": "m0-probe",
+      "skillName": "tdd",
+      "verification": {
+        "mode": "steps",
+        "steps": [
+          {
+            "id": "check",
+            "command": "bun run test",
+            "expectedExit": "zero"
+          }
+        ]
+      },
+      "cause": {
+        "kind": "review",
+        "itemId": "F-001",
+        "feature": "p1"
+      },
+      "origin": "amend"
+    },
+    {
+      "dependsOn": ["t12"],
+      "touches": [],
+      "fulfills": [],
+      "expectedBehavior": [
+        "在最终构建的扩展页面上，关于标签页不含任何赞赏区块或赞赏图片引用，其余关于内容与其它标签页正常渲染，并留存截图证据",
+        "验证记录携带证据文件路径与 sha256"
+      ],
+      "addressesItemId": ["F-002"],
+      "id": "fx-003",
+      "description": "在构建产物上验证 t12 的关于页精简（VAL-014）并留存截图证据",
+      "milestone": "m1-keyword",
+      "proves": ["VAL-014"],
+      "reportOnly": true,
+      "skillName": "user-validate-flow",
+      "verification": {
+        "mode": "steps",
+        "steps": [
+          {
+            "id": "check",
+            "command": "bun run build:smoke",
+            "expectedExit": "zero"
+          }
+        ]
+      },
+      "cause": {
+        "kind": "review",
+        "itemId": "F-002",
+        "feature": "t12"
+      },
+      "origin": "amend"
+    },
+    {
+      "dependsOn": ["t6"],
+      "touches": [
+        "src/composables/useApplying/reviewNeeded.ts",
+        "src/composables/useApplying/reviewNeeded.test.ts",
+        "src/components/Tabs/Statistics.vue"
+      ],
+      "fulfills": [],
+      "expectedBehavior": [
+        "待复核「今日累计」计数在列表为空（刷新后）时依然可显示，不再依赖 reviewNeededList.length > 0 的 v-if 条件（F-003）",
+        "同一岗位在当日重复进入待复核时，「今日累计」只计一次；按岗位 key 去重，刷新与切换页面后仍保持去重语义（F-004）",
+        "「不投递也不计入过滤」文案修正为与实际口径一致：待复核岗位当次不投递、不缓存、不计入排除；投递比例按既有 total/success 计算（附带观察，不占 itemId）",
+        "去重语义先写失败测试：同岗位多次进入待复核再刷新，计数仍为 1；不同岗位分别计数"
+      ],
+      "addressesItemId": ["F-003", "F-004"],
+      "id": "fx-004",
+      "description": "修 t6 评审发现：待复核计数器移出 v-if 显示条件、按岗位去重的当日统计，并修正误导性 data-help 文案",
+      "milestone": "m1-keyword",
+      "skillName": "tdd",
+      "verification": {
+        "mode": "steps",
+        "steps": [
+          {
+            "id": "check",
+            "command": "bun run test",
+            "expectedExit": "zero"
+          },
+          {
+            "id": "coverage",
+            "command": "bun run test:coverage && node scripts/coverage-gate.mjs --lcov .run/coverage/lcov.info --json",
+            "expectedExit": "zero"
+          },
+          {
+            "id": "crap",
+            "command": "CRAP_BASE=HEAD~1 bun run check:crap",
+            "expectedExit": "zero"
+          }
+        ]
+      },
+      "cause": {
+        "kind": "review",
+        "itemId": "F-003",
+        "feature": "t6"
+      },
+      "origin": "amend"
+    },
+    {
+      "dependsOn": ["t5"],
+      "touches": ["src/utils/jev.ts", "src/utils/jev.test.ts"],
+      "fulfills": [],
+      "expectedBehavior": [
+        "getApiKey 拒绝时 askJev 与 askJevWithFallback 返回 error 型 JevOutcome（原因指向密钥读取失败），不抛出，调用方的 FR-013 待复核映射不被绕过",
+        "registerJevBackgroundHandler 的应答链在任何依赖失败下都调用 sendResponse，MV3 消息端口必定关闭，service worker 无未处理 rejection",
+        "新增失败测试钉死：注入抛错的 getApiKey，直接路径返回 error outcome 且未发起请求；后台路径 sendResponse 被调用且 reason 为密钥读取失败"
+      ],
+      "addressesItemId": ["F-006"],
+      "id": "fx-005",
+      "description": "修 t5 评审 F-006：密钥读取异常逃逸 Promise<JevOutcome> 契约，且后台消息链无 catch 导致端口不关闭",
+      "milestone": "m2-jev",
+      "skillName": "tdd",
+      "verification": {
+        "mode": "steps",
+        "steps": [
+          {
+            "id": "check",
+            "command": "bun test ./src",
+            "expectedExit": "zero"
+          },
+          {
+            "id": "static",
+            "command": "bun run fmt:check",
+            "expectedExit": "zero"
+          }
+        ]
+      },
+      "cause": {
+        "kind": "review",
+        "itemId": "F-006",
+        "feature": "t5"
+      },
+      "origin": "amend"
+    },
+    {
+      "dependsOn": ["t6"],
+      "touches": [
+        "src/composables/useApplying/reviewNeeded.ts",
+        "src/composables/useApplying/reviewNeeded.test.ts",
+        "src/components/Tabs/Statistics.vue"
+      ],
+      "fulfills": [],
+      "expectedBehavior": [
+        "待复核「今日累计」计数在列表为空（刷新后）时依然显示，不再依赖 reviewNeededList.length > 0 的 v-if 条件（F-003）",
+        "同一岗位在当日重复进入待复核时，「今日累计」只计一次；按岗位 key 去重并跨日重置（F-004）",
+        "「不投递也不计入过滤」文案修正为与实际口径一致：当次不投递、不缓存、不计入排除（附带观察，不占 itemId）",
+        "去重语义先写失败测试：同岗位多次进入→计数仍为 1；不同岗位分别计数；跨日重置后可再计"
+      ],
+      "addressesItemId": ["F-003", "F-004"],
+      "id": "fx-006",
+      "description": "修 t6 评审发现：待复核计数器移出 v-if 显示条件、按岗位 key 当日去重，并修正误导性 data-help 文案（fx-004 的替代票，验证步骤改为可绿）",
+      "milestone": "m1-keyword",
+      "skillName": "tdd",
+      "verification": {
+        "mode": "steps",
+        "steps": [
+          {
+            "id": "check",
+            "command": "bun test ./src",
+            "expectedExit": "zero"
+          },
+          {
+            "id": "static",
+            "command": "bun run fmt:check",
+            "expectedExit": "zero"
+          },
+          {
+            "id": "scope",
+            "command": "bunx oxfmt --check src/composables/useApplying/reviewNeeded.ts src/composables/useApplying/reviewNeeded.test.ts src/components/Tabs/Statistics.vue",
+            "expectedExit": "zero"
+          }
+        ]
+      },
+      "cause": {
+        "kind": "gate",
+        "command": "coverage-gate (declared impossible: pre-existing chatModel/runtime FAIL rows)",
+        "milestone": "m1-keyword"
+      },
+      "origin": "amend"
+    },
+    {
+      "dependsOn": ["t7"],
+      "touches": [
+        "src/composables/conf/index.ts",
+        "src/composables/conf/info.ts",
+        "src/components/Tabs/AI.vue",
+        "src/composables/conf/migrate.ts",
+        "src/composables/conf/migrate.test.ts"
+      ],
+      "fulfills": [],
+      "expectedBehavior": [
+        "F-009：AI 页内对目标方向的编辑有持久化路径，重载后不丢失（写回 formData 且随 confSaving 落盘；或提供明确保存按钮，行为与配置页一致）",
+        "F-010：存储中损坏的 jev 值（null/非对象/缺字段）加载后被归一为默认关闭形态，AI 标签页不崩溃",
+        "F-008：会话默认值别名化不把启用状态的 Jev 复活进从未启用过 Jev 的存量配置（默认对象不得因 in-session 编辑而泄漏进存储）",
+        "每个修复先写失败测试：目标方向编辑→重载保留；jev:null 加载→不抛错且开关关闭；存量配置无 jev→保存后仍无 jev"
+      ],
+      "addressesItemId": ["F-008", "F-009", "F-010"],
+      "id": "fx-007",
+      "description": "修 t7 评审发现：目标方向编辑持久化、损坏 jev:null 归一、会话默认值别名化",
+      "milestone": "m2-jev",
+      "skillName": "tdd",
+      "verification": {
+        "mode": "steps",
+        "steps": [
+          {
+            "id": "check",
+            "command": "bun test ./src",
+            "expectedExit": "zero"
+          },
+          {
+            "id": "static",
+            "command": "bun run fmt:check",
+            "expectedExit": "zero"
+          }
+        ]
+      },
+      "cause": {
+        "kind": "review",
+        "itemId": "F-008",
+        "feature": "t7"
+      },
+      "origin": "amend"
+    },
+    {
+      "dependsOn": [
+        "v-m1",
+        "v-m2",
+        "t11",
+        "p1",
+        "p2",
+        "t0",
+        "t1",
+        "t10",
+        "t12",
+        "t2",
+        "t3",
+        "t4",
+        "t5",
+        "t6",
+        "t7",
+        "t8",
+        "t9"
+      ],
+      "touches": [],
+      "fulfills": [],
+      "expectedBehavior": [
+        "每条断言有结论与证据（含 VAL-015：bun run build:smoke 退出码 0——该断言由既有 build:smoke 门承担，无需实现票）",
+        "仓库规定界面为人工审查；不做真实投递除非用户逐次批准"
+      ],
+      "addressesItemId": [],
+      "id": "a-final-2",
+      "description": "在最终构建上逐条验证全部断言（替代被取消的 a-final，验收语义不变）",
+      "milestone": "acceptance",
+      "proves": [
+        "VAL-001",
+        "VAL-002",
+        "VAL-003",
+        "VAL-004",
+        "VAL-005",
+        "VAL-006",
+        "VAL-007",
+        "VAL-008",
+        "VAL-009",
+        "VAL-010",
+        "VAL-011",
+        "VAL-012",
+        "VAL-013",
+        "VAL-014",
+        "VAL-015",
+        "VAL-016",
+        "VAL-017"
+      ],
+      "reportOnly": true,
+      "validatorKind": "acceptance",
+      "skillName": "user-validate-flow",
+      "verification": {
+        "mode": "steps",
+        "steps": [
+          {
+            "id": "check",
+            "command": "bun run build:smoke",
+            "expectedExit": "zero"
+          }
+        ]
+      },
+      "cause": {
+        "kind": "gate",
+        "command": "t13 cancelled: VAL-015 satisfied by existing build:smoke",
+        "milestone": "acceptance"
+      },
+      "origin": "amend"
+    },
+    {
+      "dependsOn": ["a-final-2"],
+      "touches": [".agents/qa/"],
+      "fulfills": [],
+      "expectedBehavior": [
+        ".agents/qa/flows/ 下流程契约含五节且可被后续运行直接执行",
+        "仅 a-final-2 判为 pass 的断言写成可回归流程，其余标注真实状态"
+      ],
+      "addressesItemId": [],
+      "id": "a-promote-2",
+      "description": "将 a-final-2 证实通过的断言写成本仓库可复用的流程契约（承接被取消的 a-promote）",
+      "milestone": "acceptance",
+      "skillName": "tdd",
+      "verification": {
+        "mode": "steps",
+        "steps": [
+          {
+            "id": "check",
+            "command": "bun run test",
+            "expectedExit": "zero"
+          }
+        ]
+      },
+      "cause": {
+        "kind": "gate",
+        "command": "t13 cancelled: VAL-015 satisfied by existing build:smoke",
+        "milestone": "acceptance"
+      },
+      "origin": "amend"
+    },
+    {
+      "dependsOn": ["t4"],
+      "touches": [
+        "src/composables/useApplying/keywordMatch.ts",
+        "src/composables/useApplying/keywordMatch.test.ts",
+        "src/composables/conf/migrate.ts",
+        "src/composables/conf/migrate.test.ts"
+      ],
+      "fulfills": [],
+      "expectedBehavior": [
+        "F-021：版本尾段允许数字段加点（/^\\d+(\\.\\d+)*$/）——Vue3.2/Java1.8/Node14.17/Python3.11/SpringBoot3.2 命中，javascript 对照仍不命中，vue.js 维持不命中（F-022 维持现状，规格未定义）",
+        "F-023：keywordConflictWords 大小写归一后再判冲突——include[Java]+exclude[java] 判冲突不能启用",
+        "F-024：存量字段对象为 null/非对象时归一为默认形态，注册不抛 TypeError"
+      ],
+      "addressesItemId": [],
+      "id": "fx-008",
+      "description": "scrutiny-m1 F-021/F-023/F-024：点号版本号命中、冲突词大小写归一、损坏字段对象归一",
+      "milestone": "m1-keyword",
+      "skillName": "tdd",
+      "verification": {
+        "mode": "steps",
+        "steps": [
+          {
+            "id": "check",
+            "command": "bun test ./src/composables/useApplying ./src/composables/conf",
+            "expectedExit": "zero"
+          }
+        ]
+      },
+      "cause": {
+        "kind": "review",
+        "reviewId": "scrutiny-m1-keyword",
+        "milestone": "m1-keyword"
+      },
+      "origin": "amend"
+    },
+    {
+      "dependsOn": ["t8", "t10"],
+      "touches": [
+        "src/entrypoints/boss/delivery.ts",
+        "src/entrypoints/boss/runtime.ts",
+        "src/utils/jev.ts",
+        "src/utils/jev.test.ts"
+      ],
+      "fulfills": [],
+      "expectedBehavior": [
+        "F-028：delivery.ts 的 Jev 调用使用 askJevWithFallback（页面直连失败→扩展后台转发），不再直接用 askJev",
+        "后台转发路径由 t5 已建：background.ts:18-23 监听 jev:ask，createJevBackgroundSender 转发",
+        "页面直连成功时仍走直连（优先）；直连失败（CORS/网络）时后台兜底；两者皆不可达→待复核 jev_error",
+        "不得新增真实投递、不得触碰登录态以外的 zhipin 页面"
+      ],
+      "addressesItemId": [],
+      "id": "fx-009",
+      "description": "scrutiny-m2 F-028：流水线 Jev 调用改走 t5 后台 fallback（页面直连 CORS 被拦，当前必落待复核）",
+      "milestone": "m2-jev-followup",
+      "skillName": "tdd",
+      "verification": {
+        "mode": "steps",
+        "steps": [
+          {
+            "id": "check",
+            "command": "bun test ./src",
+            "expectedExit": "zero"
+          }
+        ]
+      },
+      "cause": {
+        "kind": "review",
+        "reviewId": "scrutiny-m2-jev",
+        "milestone": "m2-jev"
+      },
+      "origin": "amend"
+    },
+    {
+      "dependsOn": ["t10"],
+      "touches": [
+        "src/composables/useApplying/jevDirection.ts",
+        "src/composables/useApplying/jevDirection.test.ts",
+        "src/composables/useApplying/handles.ts",
+        "src/components/Tabs/AI.vue"
+      ],
+      "fulfills": [],
+      "expectedBehavior": [
+        "F-029：jev.enable=true 且 targetDirection 为空（用户可达的持久态）→ 岗位进入待复核 missing_field（FR-013 缺字段），不再静默零请求放行",
+        "t7-F-017：AI.vue 目标方向失焦落盘时重断言 canEnableJev——清空方向后 enable 落盘为 false，不残留 {enable:true,targetDirection:''}",
+        "F-025：handles.ts 缺字段 recordReviewNeeded 调用补 {today:getCurDay()} 当日去重，与 fx-006 语义一致",
+        "既有 t8 测试中断言「空方向→pass 零请求」的用例同步改为断言待复核"
+      ],
+      "addressesItemId": [],
+      "id": "fx-010",
+      "description": "scrutiny-m2 F-029/F-025 + t7-F-017：启用但方向为空→待复核 missing_field（FR-013），AI.vue 失焦重断言门，缺字段记账补当日去重",
+      "milestone": "m2-jev-followup",
+      "skillName": "tdd",
+      "verification": {
+        "mode": "steps",
+        "steps": [
+          {
+            "id": "check",
+            "command": "bun test ./src",
+            "expectedExit": "zero"
+          }
+        ]
+      },
+      "cause": {
+        "kind": "review",
+        "reviewId": "scrutiny-m2-jev",
+        "milestone": "m2-jev"
+      },
+      "origin": "amend"
+    },
+    {
+      "dependsOn": ["t8", "t10"],
+      "touches": [
+        "src/entrypoints/boss/delivery.ts",
+        "src/entrypoints/boss/runtime.ts",
+        "src/utils/jev.ts",
+        "src/utils/jev.test.ts",
+        "src/message/contentScript.ts"
+      ],
+      "fulfills": [],
+      "expectedBehavior": [
+        "ContentCounter 新增 askJevBackground(message) 中继（content-script 侧 browser.runtime.sendMessage 转发，密钥经 content 层转 runtime，不进页面消息、不进日志）",
+        "delivery.ts 的 Jev 调用改为 askJevWithFallback：页面直连失败→后台转发；两者皆不可达→待复核 jev_error（fail-closed）",
+        "页面直连成功行为不变（既有测试锁住直连优先）"
+      ],
+      "addressesItemId": [],
+      "id": "fx-009b",
+      "description": "scrutiny-m2 F-028：流水线 Jev 改走后台 fallback（含 ContentCounter 中继半边）",
+      "milestone": "m2-jev-followup",
+      "skillName": "tdd",
+      "verification": {
+        "mode": "steps",
+        "steps": [
+          {
+            "id": "check",
+            "command": "bun test ./src",
+            "expectedExit": "zero"
+          }
+        ]
+      },
+      "cause": {
+        "kind": "review",
+        "reviewId": "scrutiny-m2-jev",
+        "milestone": "m2-jev"
+      },
+      "origin": "amend"
+    }
+  ]
+}

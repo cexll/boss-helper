@@ -1,8 +1,14 @@
 <script lang="ts" setup>
-import { computed, onMounted, ref } from 'vue'
+import { computed, onMounted, onUnmounted, ref } from 'vue'
 
 import Alert from '@/components/Alert.vue'
 import { useConf } from '@/composables/conf'
+import {
+  restoreReviewConfirmations,
+  reviewNeededActions,
+  reviewNeededStore,
+} from '@/composables/useApplying/reviewNeeded'
+import type { ReviewNeededEntry } from '@/composables/useApplying/reviewNeeded'
 import { useHelper } from '@/composables/useHelper'
 
 const helper = useHelper()
@@ -11,6 +17,39 @@ const { todayData, statisticsData } = helper.statistics
 
 // const { next, page } = usePager()
 const conf = useConf()
+
+// 待复核列表：页面内（模块单例）Read 列表，subscribe 保证随流水线处置实时刷新
+const reviewNeededList = ref<ReviewNeededEntry[]>(reviewNeededStore.list())
+const unsubscribeReviewNeeded = reviewNeededStore.subscribe((entries) => {
+  reviewNeededList.value = entries
+})
+onUnmounted(unsubscribeReviewNeeded)
+
+// 今日待复核统计累计（旧统计对象可能没有该字段，按 0 处理）
+const reviewNeededCounter = computed(() => {
+  const statistics = todayData.value as { reviewNeeded?: number }
+  return statistics.reviewNeeded ?? 0
+})
+
+// t10 处置动作（FR-014）：重试（重新请求 Jev）/ 跳过 / 人工确认方向。
+// 动作在 reviewNeeded.ts（纯状态，逐条测试），这里只做薄转发 + 目标方向注入。
+const targetDirection = () => conf.formData.jev?.targetDirection ?? ''
+const onRetry = async (item: ReviewNeededEntry) => {
+  await reviewNeededActions.retry(item.key, targetDirection())
+}
+const onSkip = (item: ReviewNeededEntry) => {
+  reviewNeededActions.skip(item.key)
+}
+const onConfirm = async (item: ReviewNeededEntry) => {
+  await reviewNeededActions.confirm(item.key, targetDirection())
+}
+
+onMounted(() => {
+  void helper.statistics.updateStatistics()
+  // t10：与持久确认记录对齐（幂等；存储损坏归一为空），方向阶段才会零请求放行
+  void restoreReviewConfirmations()
+})
+
 const statisticCycle = ref(1)
 
 const statisticCycleData = [
@@ -49,10 +88,6 @@ const cycle = computed(() => {
     ans += statisticsData.value[i]?.success ?? 0
   }
   return ans
-})
-
-onMounted(() => {
-  void helper.statistics.updateStatistics()
 })
 </script>
 
@@ -114,6 +149,49 @@ onMounted(() => {
         <div class="text-2xl font-semibold">
           {{ cycle + todayData.success }}
           <span class="text-sm text-gray-400">份</span>
+        </div>
+      </div>
+    </div>
+    <div
+      class="flex flex-col gap-1"
+      data-help="待复核岗位当次不投递、不缓存、不计入排除；列表刷新后清空，今日累计按岗位当日去重"
+    >
+      <div class="text-sm text-gray-500 flex items-center gap-2">
+        待复核：
+        <UBadge color="warning" variant="subtle">{{ reviewNeededList.length }}</UBadge>
+        <span class="text-gray-400">今日累计 {{ reviewNeededCounter }}</span>
+      </div>
+      <div v-for="item in reviewNeededList" :key="item.key" class="flex items-center gap-2 text-sm">
+        <span class="truncate max-w-[220px]" :title="item.jobName">{{ item.jobName }}</span>
+        <UBadge color="warning" variant="subtle">{{ item.reason }}</UBadge>
+        <div class="flex gap-1 ml-auto shrink-0">
+          <UButton
+            size="xs"
+            variant="soft"
+            color="primary"
+            data-help="重试：撤销人工确认并移出列表，下一次扫到重新请求 Jev"
+            @click="onRetry(item)"
+          >
+            重试
+          </UButton>
+          <UButton
+            size="xs"
+            variant="soft"
+            color="warning"
+            data-help="跳过：只移出列表，不记排除、不改统计"
+            @click="onSkip(item)"
+          >
+            跳过
+          </UButton>
+          <UButton
+            size="xs"
+            variant="soft"
+            color="success"
+            data-help="人工确认方向：当前岗位 + 当前目标方向有效，确认后仍须通过硬条件"
+            @click="onConfirm(item)"
+          >
+            确认方向
+          </UButton>
         </div>
       </div>
     </div>

@@ -289,6 +289,55 @@ check(
   `exit=${r.code} ${r.stderr.slice(0, 120)}`,
 )
 
+// ── check-crap (per-target coverage binding + no-function scope) ────────────
+// Regression harness: with `--src <file>` the gate's coverage lookup used to
+// bind ANY same-basename entry (packages/…/index.ts could mask src/…/index.ts →
+// false FAIL), and a zero-function file aborted the whole run as "untrusted".
+{
+  const crapDir = path.join(tmp, 'crap')
+  fs.mkdirSync(path.join(crapDir, 'a'), { recursive: true })
+  fs.mkdirSync(path.join(crapDir, 'packages-other'), { recursive: true })
+  const gSrc =
+    'export function g(x) {\n  if (x) if (x) if (x) if (x) if (x) if (x) {\n    return 1\n  }\n  return 0\n}\n'
+  fs.writeFileSync(path.join(crapDir, 'a', 'index.ts'), gSrc)
+  fs.writeFileSync(path.join(crapDir, 'packages-other', 'index.ts'), gSrc)
+  fs.writeFileSync(path.join(crapDir, 'noop.ts'), 'export type Only = 1\n')
+  const coveredHits = Object.fromEntries(
+    fs
+      .readFileSync(path.join(crapDir, 'a', 'index.ts'), 'utf8')
+      .split('\n')
+      .map((_, i) => [String(i + 1), 5]),
+  )
+  const crapMap = path.join(tmp, 'crap-linemap.json')
+  // insertion order is the trap: the UNCOVERED packages-like entry comes first
+  fs.writeFileSync(
+    crapMap,
+    JSON.stringify({
+      'packages/other/index.ts': { lines: {} },
+      [path.join(crapDir, 'a', 'index.ts')]: { lines: coveredHits },
+    }),
+  )
+  const crapRun = (...flags) => run('node', ['scripts/check-crap.mjs', ...flags])
+  r = crapRun('--linemap', crapMap, '--target', path.join(crapDir, 'a', 'index.ts'))
+  check(
+    'check-crap: covered target binds its OWN linemap entry (no basename-collision false FAIL)',
+    r.code === 0 && /PASS/.test(r.stdout),
+    `exit=${r.code} ${r.stderr.slice(0, 200)}`,
+  )
+  r = crapRun('--linemap', crapMap, '--target', path.join(crapDir, 'noop.ts'))
+  check(
+    'check-crap: zero-function target is a scoped note, not an untrusted abort',
+    r.code === 0 && /no functions/i.test(r.stdout),
+    `exit=${r.code} ${r.stderr.slice(0, 200)}`,
+  )
+  r = crapRun('--linemap', crapMap, '--target', path.join(crapDir, 'packages-other', 'index.ts'))
+  check(
+    'check-crap: uncovered target still fails (the fix must not weaken the gate)',
+    r.code === 1,
+    `exit=${r.code}`,
+  )
+}
+
 // ── gates-lib parsing honesty ──────────────────────────────────────────────
 {
   const { default: mod } = await import('./gates-lib.mjs').then((m) => ({ default: m }))

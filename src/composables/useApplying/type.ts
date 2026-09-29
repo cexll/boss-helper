@@ -2,10 +2,6 @@ import type { ContextLogger } from 'devlog-ui'
 
 import type { HelperContext, JobData } from '@/composables/useHelper'
 
-import type { DeliveryWorkflow } from '.'
-import { useDeliveryWorkflow } from '.'
-import { DependencyMissingError } from './handles'
-
 export type Task<C extends HelperContext<C, T, S>, T, S> = {
   id: string
   task: TaskHandler<C, T, S>
@@ -144,13 +140,12 @@ export type TaskStatus =
   | 'skipped'
   | 'disabled'
 
-export function defineTaskWorkflow<C extends HelperContext<C, T, S>, T, S = {}>(
-  ...items: Array<Task<C, T, S> | TaskPipeline<C, T, S> | (() => Task<C, T, S>)>
-): (ctx: C) => Promise<DeliveryWorkflow<C, T, S>> {
-  const allDefinitions = items.flatMap((i) => (typeof i === 'function' ? i() : i))
-
-  return async (_ctx: C) => useDeliveryWorkflow(allDefinitions, _ctx)
+export class DependencyMissingError extends Error {
+  constructor(public taskId: string) {
+    super(`Task dependency missing: ${taskId}`)
+  }
 }
+
 export function createLazyObject<T extends object>(taskId: string): T {
   let _data: T | undefined
   let _initialized = false

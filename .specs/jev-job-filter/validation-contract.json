@@ -1,0 +1,159 @@
+{
+  "contract_version": "1",
+  "authority": "machine contract for jev-job-filter; spec.md Validation Plan is the human-readable view, this JSON is the machine grammar consumed by devflow.cjs validate",
+  "assertions": [
+    {
+      "id": "VAL-001",
+      "title": "英文完整词、版本号与技术名称语义（AC-001 后两例、AC-002）",
+      "behavior": "英文完整词、版本号与技术名称语义（AC-001 后两例、AC-002）",
+      "surface": "business-flow",
+      "tool": "business-flow",
+      "evidence": "bun test 用例输出",
+      "status": "pending"
+    },
+    {
+      "id": "VAL-002",
+      "title": "包含组与排除组并存、任一或全部满足、只设排除组（AC-001 首例）",
+      "behavior": "包含组与排除组并存、任一或全部满足、只设排除组（AC-001 首例）",
+      "surface": "business-flow",
+      "tool": "business-flow",
+      "evidence": "bun test 用例输出",
+      "status": "pending"
+    },
+    {
+      "id": "VAL-003",
+      "title": "职位描述否定词只作用于排除词、后缀不再阻止命中（AC-004）",
+      "behavior": "职位描述否定词只作用于排除词、后缀不再阻止命中（AC-004）",
+      "surface": "business-flow",
+      "tool": "business-flow",
+      "evidence": "bun test 用例输出",
+      "status": "pending"
+    },
+    {
+      "id": "VAL-004",
+      "title": "空规则与包含排除冲突不能启用（AC-003）",
+      "behavior": "空规则与包含排除冲突不能启用（AC-003）",
+      "surface": "ui",
+      "tool": "ui",
+      "evidence": "截图 + 控制台无新增错误",
+      "status": "pending"
+    },
+    {
+      "id": "VAL-005",
+      "title": "旧配置原样迁移且结果与旧实现一致（AC-005）",
+      "behavior": "旧配置原样迁移且结果与旧实现一致（AC-005）",
+      "surface": "data",
+      "tool": "data",
+      "evidence": "bun test 以旧实现为参照的对照用例",
+      "status": "pending"
+    },
+    {
+      "id": "VAL-006",
+      "title": "候选词只来自用过的关键词、不自动成为条件（FR-005）",
+      "behavior": "候选词只来自用过的关键词、不自动成为条件（FR-005）",
+      "surface": "ui",
+      "tool": "ui",
+      "evidence": "截图",
+      "status": "pending"
+    },
+    {
+      "id": "VAL-007",
+      "title": "待复核处置不投递、不排除、不缓存、统计单独计数（AC-008 前半）",
+      "behavior": "待复核处置不投递、不排除、不缓存、统计单独计数（AC-008 前半）",
+      "surface": "business-flow",
+      "tool": "business-flow",
+      "evidence": "bun test 用例输出",
+      "status": "pending"
+    },
+    {
+      "id": "VAL-008",
+      "title": "Jev 缺密钥或目标不能启用、启用时展示接收服务（AC-006）",
+      "behavior": "Jev 缺密钥或目标不能启用、启用时展示接收服务（AC-006）",
+      "surface": "ui",
+      "tool": "ui",
+      "evidence": "截图",
+      "status": "pending"
+    },
+    {
+      "id": "VAL-009",
+      "title": "Jev 请求只含标题与职位描述、超时进入待复核、不可达如实说明（AC-011、AC-012）",
+      "behavior": "Jev 请求只含标题与职位描述、超时进入待复核、不可达如实说明（AC-011、AC-012）",
+      "surface": "api",
+      "tool": "api",
+      "evidence": "bun test 断言请求体 + p1 实测记录",
+      "status": "pending"
+    },
+    {
+      "id": "VAL-010",
+      "title": "硬条件排除不调 Jev、标题判不相关不取详情不调 AI 筛选（AC-007）",
+      "behavior": "硬条件排除不调 Jev、标题判不相关不取详情不调 AI 筛选（AC-007）",
+      "surface": "business-flow",
+      "tool": "business-flow",
+      "evidence": "bun test 断言请求次数",
+      "status": "pending"
+    },
+    {
+      "id": "VAL-011",
+      "title": "同岗位同判定依据不重复请求、判定依据变化后重新请求（AC-009）",
+      "behavior": "同岗位同判定依据不重复请求、判定依据变化后重新请求（AC-009）",
+      "surface": "business-flow",
+      "tool": "business-flow",
+      "evidence": "bun test 用例输出",
+      "status": "pending"
+    },
+    {
+      "id": "VAL-012",
+      "title": "重试重新请求、人工确认只放行当前岗位且仍受硬条件约束（AC-008 后半、AC-010）",
+      "behavior": "重试重新请求、人工确认只放行当前岗位且仍受硬条件约束（AC-008 后半、AC-010）",
+      "surface": "business-flow",
+      "tool": "business-flow",
+      "evidence": "bun test 用例输出",
+      "status": "pending"
+    },
+    {
+      "id": "VAL-013",
+      "title": "切换标签页后继续或如实提示、间隔与并发不变（AC-013）",
+      "behavior": "切换标签页后继续或如实提示、间隔与并发不变（AC-013）",
+      "surface": "ui",
+      "tool": "ui",
+      "evidence": "p2 实测记录 + 截图",
+      "status": "pending"
+    },
+    {
+      "id": "VAL-014",
+      "title": "关于页无赞赏区块（AC-014）",
+      "behavior": "关于页无赞赏区块（AC-014）",
+      "surface": "ui",
+      "tool": "ui",
+      "evidence": "截图",
+      "status": "pending"
+    },
+    {
+      "id": "VAL-015",
+      "title": "构建产物清单与入口",
+      "behavior": "构建产物清单与入口",
+      "surface": "cli",
+      "tool": "cli",
+      "evidence": "npm run build:smoke 退出码 0",
+      "status": "pending"
+    },
+    {
+      "id": "VAL-016",
+      "title": "Jev 可达性与请求形态实测（规格前置 P5，p1 的实测证据）",
+      "behavior": "从插件页面与扩展后台两条路径分别记录 Jev 可达性与跨域限制、实际请求体字段（只含岗位标题与职位描述）、响应字段、耗时分布、错误与不确定结果的表现，并提出超时秒数、不确定判定方式与缓存期限",
+      "surface": "api",
+      "tool": "api",
+      "evidence": "p1 实测记录：脱敏请求与响应样本、耗时统计",
+      "status": "pending"
+    },
+    {
+      "id": "VAL-017",
+      "title": "后台节流实测（规格前置 P4，p2 的实测证据）",
+      "behavior": "加载已构建扩展，在测试账号上以现有安全间隔观察切换标签页 5、15、30 分钟后的间隔、请求暂停与计时延迟，并给出 t11 应提示的判定条件",
+      "surface": "ui",
+      "tool": "ui",
+      "evidence": "p2 实测记录：间隔测量表、页面截图、控制台输出",
+      "status": "pending"
+    }
+  ]
+}

@@ -9,6 +9,7 @@ import { exportJson, importJson } from '@/utils/jsonImportExport'
 import { logger } from '@/utils/logger'
 
 import { defaultFormData } from './info'
+import { migrateKeywordFields, normalizeJevConfig } from './migrate'
 
 export * from './info'
 
@@ -33,7 +34,7 @@ export const appearanceConf = useStorageAsync(
   { mergeDefaults: true },
 )
 const isLoading = ref(true)
-const formData: FormData = reactive(defaultFormData)
+const formData: FormData = reactive(jsonClone(defaultFormData))
 const formDataPreset = ref('default')
 const formDataPresets = ref([
   {
@@ -47,6 +48,24 @@ const formDataKey = () => {
     return `local:web-geek-job-FormData-${formDataPreset.value}`
   }
   return 'local:web-geek-job-FormData'
+}
+/**
+ * 落盘前的 Jev 归一（评审 F-037）：`{enable:true, targetDirection:''}` 这类良构坏形状
+ * 会被读路径 normalizeJevConfig 按既有决定原样保留（F-023/F-024），再经 Config.vue
+ * 「保存配置」/LLMPromptEdit/AI 页 change() 等任意 confSaving 调用原样写进存储。
+ * 这里在持久边界 fail-closed（AC-006：空方向不得以启用态持久化），下一次保存即修正存量。
+ * 密钥不在此校验——按凭证纪律不进 FormData（formData.ts 注释），判定门 canEnableJev
+ * 在判定时已双值拒判。只归一化 formData 本体；presets 是惰性副本，switchPreset 应用后
+ * 仍要走 confSaving 才落盘（届时同样被归一化），不额外遍历。
+ */
+function normalizeJevForPersist(data: FormData): void {
+  const jev = data.jev
+  if (!jev || jev.enable !== true) {
+    return
+  }
+  if (typeof jev.targetDirection === 'string' && jev.targetDirection.trim() === '') {
+    jev.enable = false
+  }
 }
 
 watchThrottled(
@@ -130,21 +149,37 @@ const FROM_VERSION: [string, (from: Partial<FormData>) => Partial<FormData>][] =
       return from
     },
   ],
+  ['20260926', (from) => migrateKeywordFields(from)],
 ]
+
+/**
+ * 存量配置逐级迁移（FROM_VERSION 升序补跑：低于存量 version 的版本器跳过，
+ * 其余按序补跑并逐个就地盖章）。与存量版本比较必须用补跑前的原始 version，
+ * 不能用循环中已盖章的新值——否则首个版本器执行后即为最新，其余全部被误判为已达到。
+ * 纯函数：无 toast / 日志 / 存储副作用，可被 bun test 直接验证；
+ * formDataHandler 只包一层 try/catch + 用户提示。
+ */
+export function migrateFormData(from: Partial<FormData>): Partial<FormData> {
+  const storedVersion = from?.version ?? '20240401'
+  for (const [version, fn] of FROM_VERSION) {
+    if (storedVersion >= version) {
+      continue
+    }
+    from = fn(from)
+    from.version = version
+  }
+  // 评审 F-010：损坏的 jev 值（null/非对象/缺字段）在读取路径归一为默认关闭形态，
+  // AI 标签页的 computed 解引用（.enable/.targetDirection）不再可能拿到会抛错的形状。
+  from.jev = normalizeJevConfig(from.jev)
+  return from
+}
 
 export const useConf = () => {
   const toast = useToast()
 
   async function formDataHandler(from: Partial<FormData>) {
     try {
-      for (let i = FROM_VERSION.length - 1; i >= 0; i--) {
-        const [version, fn] = FROM_VERSION[i]!
-        if ((from?.version ?? '20240401') >= version) {
-          break
-        }
-        from = fn(from)
-        from.version = version
-      }
+      from = migrateFormData(from)
     } catch (err) {
       logger.error('用户配置初始化失败', err)
       toast.add({
@@ -155,6 +190,17 @@ export const useConf = () => {
     return from
   }
 
+  /**
+   * 读取存储中的用户配置并走同一条迁移路径（F-001）：init / confReload / confExport
+   * 一律经此函数取数，任何读存储 formData 的路径都不可能再绕过 migrateFormData。
+   */
+  async function readStoredFormData(): Promise<FormData> {
+    const from = await counter.storageGet<Partial<FormData>>(formDataKey(), {})
+    // 评审 F-008：deepmerge 在 target 上做浅拷贝、对 stored 缺失的键保留 target 的
+    // 子对象引用；先深拷贝默认值，会话内对 formData 的编辑才写不进模块默认对象，
+    // 存量配置（无 jev 键）也不会经由别名化的 defaultFormData 复活出启用状态。
+    return deepmerge<FormData>(jsonClone(defaultFormData), await formDataHandler(from))
+  }
   async function init() {
     isLoading.value = true
     try {
@@ -168,10 +214,7 @@ export const useConf = () => {
       formDataPreset.value = rawFormDataPreset
       formDataPresets.value = rawFormDataPresets
 
-      let from = await counter.storageGet<Partial<FormData>>(formDataKey(), {})
-      from = (await formDataHandler(from)) ?? from
-      const data = deepmerge<FormData>(defaultFormData, from)
-      Object.assign(formData, data)
+      Object.assign(formData, await readStoredFormData())
     } catch (e) {
       toast.add({
         title: `配置加载失败: ${String(e)}`,
@@ -185,6 +228,7 @@ export const useConf = () => {
 
   async function confSaving() {
     try {
+      normalizeJevForPersist(formData)
       await counter.storageSet(formDataKey(), jsonClone(formData))
       await counter.storageSet(formDataPresetKey, jsonClone(formDataPreset.value))
       await counter.storageSet(formDataPresetsKey, jsonClone(formDataPresets.value))
@@ -206,8 +250,7 @@ export const useConf = () => {
   }
 
   async function confReload() {
-    const v = deepmerge<FormData>(defaultFormData, await counter.storageGet(formDataKey(), {}))
-    deepmerge(formData, v, { clone: false })
+    deepmerge(formData, await readStoredFormData(), { clone: false })
     logger.debug('formData已重置')
     toast.add({
       title: '重置成功',
@@ -216,8 +259,8 @@ export const useConf = () => {
   }
 
   async function confExport() {
-    const data = deepmerge<FormData>(defaultFormData, await counter.storageGet(formDataKey(), {}))
-    exportJson(data, '打招呼配置')
+    // 与 confReload 同路径：导出迁移后的形状，导入端拿到的就是带 groups 的新配置（F-001）。
+    exportJson(await readStoredFormData(), '打招呼配置')
   }
 
   async function confImport() {
@@ -250,6 +293,7 @@ export const useConf = () => {
         },
         {} as Record<string, any>,
       ),
+      { clone: false },
     )
     logger.debug('formData推荐配置已应用')
     toast.add({
@@ -259,7 +303,7 @@ export const useConf = () => {
   }
 
   function confDelete() {
-    deepmerge(formData, defaultFormData)
+    deepmerge(formData, defaultFormData, { clone: false })
     logger.debug('formData已清空')
     toast.add({
       title: '配置清空成功, 不会自动保存, 请手动保存或重载恢复',

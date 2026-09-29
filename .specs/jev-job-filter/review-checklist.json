@@ -1,0 +1,42 @@
+[
+  {
+    "id": "tt-1",
+    "text": "scope: every changed file belongs to this feature's Touches; unrelated refactor, reformat or drive-by fix is a finding"
+  },
+  {
+    "id": "tt-2",
+    "text": "tdd: a failing test was observed before the implementation it covers; a test with no red phase is named as such in skillFeedback"
+  },
+  {
+    "id": "tt-3",
+    "text": "regex safety: no user-entered keyword ever reaches a RegExp or evaluator; matching for user input is literal/text based and negation is not modeled as regex from input"
+  },
+  {
+    "id": "tt-4",
+    "text": "gates: coverage 85% per changed .ts, CRAP <= 15.76, baseline ratchet not raised, no --no-verify, no weakening of any threshold or test"
+  },
+  {
+    "id": "tt-5",
+    "text": "deletion of existing tests, or inbox of the filters' pacing/delay/limit/expire logic in useApplying, is a blocking finding"
+  },
+  {
+    "id": "tt-6",
+    "text": "config: persisted schema changes ship their migration in the same change and old stored keys stay loadable; defaults in conf/info.ts match types/formData.ts"
+  },
+  {
+    "id": "tt-7",
+    "text": "fail-open: an error, timeout or missing data in Jev or keyword matching must not silently pass; the disposition is review-needed or skip, never permission"
+  },
+  {
+    "id": "tt-8",
+    "text": "jest-like behavior: keyword test cases include the boundary words Java/JavaScript/Vue3/C/C++/C#/.NET and negation cases (无外包, 不加班, Java系统开发)"
+  },
+  {
+    "id": "tt-9",
+    "text": "worktree hygiene: no writes outside the assigned worktree; components.d.ts is never hand-edited"
+  },
+  {
+    "id": "tt-10",
+    "text": "HITL surfaces: p1/p2 probes must not perform real delivery or send personal data; probe records are sanitized of credentials"
+  }
+]

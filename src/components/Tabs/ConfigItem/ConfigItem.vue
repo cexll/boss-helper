@@ -2,6 +2,12 @@
 import type { DropdownMenuItem } from '@nuxt/ui'
 
 import { formInfoData, useConf } from '@/composables/conf'
+import {
+  EMPTY_KEYWORD_VIEW,
+  isKeywordFieldConfig,
+  keywordFieldView,
+} from '@/composables/useApplying/keywordRules'
+import type { KeywordFieldView } from '@/composables/useApplying/keywordRules'
 import { useHelper } from '@/composables/useHelper/index.js'
 import type { ConfigItem } from '@/composables/useHelper/type'
 
@@ -17,6 +23,16 @@ const props = defineProps<{
 
 const helper = useHelper()
 const conf = useConf()
+
+/** 关键词组字段（jobTitle / jobContent）的视图快照；非关键词字段返回哨兵，分支不渲染。 */
+const keywordView = computed<KeywordFieldView>(() => {
+  const item = props.item
+  if (!item || item.type !== 'select' || !('key' in item)) {
+    return EMPTY_KEYWORD_VIEW
+  }
+  const field: unknown = conf.formData[item.key]
+  return isKeywordFieldConfig(field) ? keywordFieldView(field) : EMPTY_KEYWORD_VIEW
+})
 
 const exp = computed(() => {
   if (
@@ -76,6 +92,45 @@ const exp = computed(() => {
     <UInputNumber v-model="conf.formData[item.key]" v-bind="item.inputNumberProps" />
   </UFormField>
 
+  <UFormField
+    v-else-if="item.type === 'select' && isKeywordFieldConfig(conf.formData[item.key])"
+    class="col-span-2"
+    :title="formInfoData[item.key]?.['data-help']"
+    :data-help="formInfoData[item.key]?.['data-help']"
+  >
+    <template #label>
+      <UFieldGroup class="flex flex-row gap-1 items-center">
+        <UCheckbox
+          v-model="conf.formData[item.key].enable"
+          :label="formInfoData[item.key]?.label"
+          :disabled="keywordView.usable ? undefined : true"
+          size="sm"
+        />
+      </UFieldGroup>
+    </template>
+    <div class="flex flex-col gap-2 w-full">
+      <div class="flex flex-col gap-1">
+        <span class="text-xs text-gray-400">包含词</span>
+        <FormSelect
+          v-model:value="conf.formData[item.key].groups.includeWords"
+          v-model:mode="conf.formData[item.key].groups.includeMode"
+          :candidates="keywordView.candidates"
+          :disabled="helper.workflowRunning.value"
+        />
+      </div>
+      <div class="flex flex-col gap-1">
+        <span class="text-xs text-gray-400">排除词</span>
+        <FormSelect
+          v-model:value="conf.formData[item.key].groups.excludeWords"
+          :candidates="keywordView.candidates"
+          :disabled="helper.workflowRunning.value"
+        />
+      </div>
+      <p v-if="!keywordView.usable && keywordView.hint" class="text-xs text-gray-400">
+        {{ keywordView.hint }}
+      </p>
+    </div>
+  </UFormField>
   <FormItem
     v-else-if="item.type === 'select'"
     v-bind="formInfoData[item.key]"
@@ -88,6 +143,7 @@ const exp = computed(() => {
       v-model:options="conf.formData[item.key].options"
     />
   </FormItem>
+
   <span
     v-else-if="item.type === 'checkbox'"
     v-bind="formInfoData[item.key]"
