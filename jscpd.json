@@ -5,6 +5,7 @@
   "output": "./.run/jscpd",
   "ignore": [
     "**/node_modules/**",
+    "**/.git/**",
     "**/.wxt/**",
     "**/.output/**",
     "**/.run/**",
